@@ -196,7 +196,18 @@ void filling_runner(number_type *currentfield, int width, int height)
 
 void apply_periodic_boundaries(number_type *field, int width, int height)
 {
-  // TODO: implement periodic boundary copies
+  for (size_t i = 1; i < width-1; i++)
+  {
+    field[calcIndex(width, i, 0)] = field[calcIndex(width, i, 1)];
+    field[calcIndex(width, i, height-1)] = field[calcIndex(width, i, height-2)];
+  }
+  for (size_t i = 0; i < height; i++)
+  {
+    field[calcIndex(width, 0, i)] = field[calcIndex(width, 1, 0)];
+    field[calcIndex(width, width-1, i)] = field[calcIndex(width, width-2, i)];
+  }
+
+  
 }
 
 void game(int width, int height, int num_timesteps)
@@ -212,7 +223,7 @@ void game(int width, int height, int num_timesteps)
   write_field(currentfield, width, height, time);
   // TODO 4: implement periodic boundary condition
   apply_periodic_boundaries(currentfield, width, height);
-
+  write_field(currentfield, width, height, time+1);
   for (time = 1; time <= num_timesteps; time++)
   {
     // TODO 2: implement evolve function (see above)
