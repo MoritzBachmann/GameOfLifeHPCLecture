@@ -7,8 +7,11 @@
 #include <sys/time.h>
 #include <sys/types.h>
 #include <unistd.h>
+// OPTIONAL: comment this out for output
+ #define NO_OUTOUT
 // OPTIONAL: comment this out for console output
-// #define CONSOLE_OUTPUT
+//#define CONSOLE_OUTPUT
+
 
 #define calcIndex(width, x, y) ((y) * (width) + (x))
 #define ALIVE 1
@@ -86,6 +89,10 @@ void write_vtk_data(FILE *f, char *data, int length)
 
 void write_field(number_type *currentfield, int width, int height, int timestep)
 {
+#ifdef NO_OUTOUT
+ printf("finished timestep %d\n", timestep);
+  return;
+#endif
 #ifdef CONSOLE_OUTPUT
   printf("\033[H");
   for (int y = 0; y < height; y++)
