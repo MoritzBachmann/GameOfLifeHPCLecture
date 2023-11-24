@@ -203,7 +203,7 @@ void apply_periodic_boundaries(number_type *field, int width, int height)
   }
   for (size_t i = 0; i < height; i++)
   {
-    field[calcIndex(width, 0, i)] = field[calcIndex(width, 1, 0)];
+    field[calcIndex(width, 0, i)] = field[calcIndex(width, 1, i)];
     field[calcIndex(width, width-1, i)] = field[calcIndex(width, width-2, i)];
   }
 
@@ -223,7 +223,6 @@ void game(int width, int height, int num_timesteps)
   write_field(currentfield, width, height, time);
   // TODO 4: implement periodic boundary condition
   apply_periodic_boundaries(currentfield, width, height);
-  write_field(currentfield, width, height, time+1);
   for (time = 1; time <= num_timesteps; time++)
   {
     // TODO 2: implement evolve function (see above)
