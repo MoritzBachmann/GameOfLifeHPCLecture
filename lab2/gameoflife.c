@@ -8,6 +8,8 @@
 #include <sys/time.h>
 #include <sys/types.h>
 #include <unistd.h>
+// OPTIONAL: comment this out for No output
+#define NO_OUTOUT
 // OPTIONAL: comment this out for console output
 //#define CONSOLE_OUTPUT
 
@@ -83,6 +85,10 @@ void write_vtk_data(FILE *f, char *data, int length) {
 }
 
 void write_field(number_type *currentfield, int width, int height, int timestep) {
+#ifdef NO_OUTOUT
+  printf("finished timestep %d\n", timestep);
+  return;
+#endif
 #ifdef CONSOLE_OUTPUT
   printf("\033[H");
   for (int y = 0; y < height; y++) {
@@ -116,8 +122,58 @@ void write_field(number_type *currentfield, int width, int height, int timestep)
 #endif
 }
 
+int count_neighbours(number_type *currentfield, int pos_x, int pos_y, int width)
+{
+  int count = 0;
+  for (int i = pos_x - 1; i <= pos_x + 1; i++)
+  {
+    for (int j = pos_y - 1; j <= pos_y + 1; j++)
+    {
+      int t = currentfield[calcIndex(width, i, j)];
+      if (t == ALIVE)
+      {
+        count++;
+      }
+    }
+  }
+  if (currentfield[calcIndex(width, pos_x, pos_y)] == ALIVE)
+    count--;
+  return count;
+}
+
+void old_evolve(number_type *currentfield, number_type *newfield, int width, int height)
+{
+  // TODO traverse through each voxel and implement game of live logic
+  // HINT: avoid boundaries by not traversing full array
+
+}
 
 void evolve(number_type *currentfield, number_type *newfield, int starts[2], int ends[2], int width) {
+  #pragma omp parallel for //collapse(2)
+  for (int i = starts[0]; i < ends[0] - 1; i++){
+    for (int j = starts[0]; j < ends[1] - 1; j++)
+    {
+      number_type *current_cell = currentfield + calcIndex(width, i, j);
+      number_type *new_cell = newfield + calcIndex(width, i, j);
+      int neighbours = count_neighbours(currentfield, i, j, width);
+      if (*current_cell == ALIVE)
+      {
+        if (neighbours < 2 || neighbours > 3)
+          *new_cell = DEAD;
+        else
+          *new_cell = ALIVE;
+      }
+      else if (*current_cell == DEAD)// DEAD
+      {
+         if (neighbours == 3)
+          *new_cell = ALIVE;
+        else
+          *new_cell = DEAD;
+      }else{
+        printf("Warn unexpected cel value \n");
+      }
+    }
+  }
 // void evolve(number_type* currentfield, number_type* newfield, int width, int height) {
 // TODO traverse through each voxel and implement game of live logic and
 // parallelize using OpenMP.
@@ -145,7 +201,16 @@ void filling_runner(number_type *currentfield, int width, int height) {
 }
 
 void apply_periodic_boundaries(number_type *field, int width, int height) {
-  // TODO: implement periodic boundary copies
+  for (size_t i = 1; i < width-1; i++)
+  {
+    field[calcIndex(width, i, 0)] = field[calcIndex(width, i, 1)];
+    field[calcIndex(width, i, height-1)] = field[calcIndex(width, i, height-2)];
+  }
+  for (size_t i = 0; i < height; i++)
+  {
+    field[calcIndex(width, 0, i)] = field[calcIndex(width, 1, i)];
+    field[calcIndex(width, width-1, i)] = field[calcIndex(width, width-2, i)];
+  }
 }
 
 void game(int width, int height, int num_timesteps, int *decomposition) {
