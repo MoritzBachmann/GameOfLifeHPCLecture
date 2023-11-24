@@ -141,13 +141,6 @@ int count_neighbours(number_type *currentfield, int pos_x, int pos_y, int width)
   return count;
 }
 
-void old_evolve(number_type *currentfield, number_type *newfield, int width, int height)
-{
-  // TODO traverse through each voxel and implement game of live logic
-  // HINT: avoid boundaries by not traversing full array
-
-}
-
 void evolve(number_type *currentfield, number_type *newfield, int starts[2], int ends[2], int width) {
   #pragma omp parallel for //collapse(2)
   for (int i = starts[0]; i < ends[0] - 1; i++){
@@ -221,6 +214,10 @@ void game(int width, int height, int num_timesteps, int *decomposition) {
   // TODO 1: use your favorite filling
   // filling_random (currentfield, width, height);
   filling_runner(currentfield, width, height);
+  int n;
+  int m;
+  int delta_width = width/n;
+  int delta_height = height/m;
   int starts[2];
   int ends[2];
   int time = 0;
@@ -228,11 +225,14 @@ void game(int width, int height, int num_timesteps, int *decomposition) {
   starts[Y] = 1;
   ends[X] = width - 1;
   ends[Y] = height - 1;
+
+
       write_field(currentfield, width, height, time);
       // TODO 3: implement periodic boundary condition
       apply_periodic_boundaries(currentfield, width, height);
     for (time = 1; time <= num_timesteps; time++) {
       // TODO 2: implement evolve function (see above)
+      for(int i = 0; i< n*M i)
       evolve(currentfield, newfield, starts, ends, width);
         // TODO 3: implement periodic boundary condition
         apply_periodic_boundaries(newfield, width, height);
