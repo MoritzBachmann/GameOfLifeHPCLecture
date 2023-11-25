@@ -8,10 +8,9 @@
 #include <sys/types.h>
 #include <unistd.h>
 // OPTIONAL: comment this out for output
- #define NO_OUTOUT
+#define NO_OUTOUT
 // OPTIONAL: comment this out for console output
-//#define CONSOLE_OUTPUT
-
+// #define CONSOLE_OUTPUT
 
 #define calcIndex(width, x, y) ((y) * (width) + (x))
 #define ALIVE 1
@@ -90,7 +89,7 @@ void write_vtk_data(FILE *f, char *data, int length)
 void write_field(number_type *currentfield, int width, int height, int timestep)
 {
 #ifdef NO_OUTOUT
- printf("finished timestep %d\n", timestep);
+  printf("finished timestep %d\n", timestep);
   return;
 #endif
 #ifdef CONSOLE_OUTPUT
@@ -151,7 +150,8 @@ void evolve(number_type *currentfield, number_type *newfield, int width, int hei
 {
   // TODO traverse through each voxel and implement game of live logic
   // HINT: avoid boundaries by not traversing full array
-  for (int i = 1; i < width - 1; i++){
+  for (int i = 1; i < width - 1; i++)
+  {
     for (int j = 1; j < height - 1; j++)
     {
       number_type *current_cell = currentfield + calcIndex(width, i, j);
@@ -164,13 +164,15 @@ void evolve(number_type *currentfield, number_type *newfield, int width, int hei
         else
           *new_cell = ALIVE;
       }
-      else if (*current_cell == DEAD)// DEAD
+      else if (*current_cell == DEAD) // DEAD
       {
-         if (neighbours == 3)
+        if (neighbours == 3)
           *new_cell = ALIVE;
         else
           *new_cell = DEAD;
-      }else{
+      }
+      else
+      {
         printf("Warn unexpected cel value \n");
       }
     }
@@ -203,18 +205,16 @@ void filling_runner(number_type *currentfield, int width, int height)
 
 void apply_periodic_boundaries(number_type *field, int width, int height)
 {
-  for (size_t i = 1; i < width-1; i++)
+  for (size_t i = 1; i < width - 1; i++)
   {
-    field[calcIndex(width, i, 0)] = field[calcIndex(width, i, 1)];
-    field[calcIndex(width, i, height-1)] = field[calcIndex(width, i, height-2)];
+    field[calcIndex(width, i, 0)] = field[calcIndex(width, i, height - 2)];
+    field[calcIndex(width, i, height - 1)] = field[calcIndex(width, i, 1)];
   }
   for (size_t i = 0; i < height; i++)
   {
-    field[calcIndex(width, 0, i)] = field[calcIndex(width, 1, i)];
-    field[calcIndex(width, width-1, i)] = field[calcIndex(width, width-2, i)];
+    field[calcIndex(width, 0, i)] = field[calcIndex(width, width - 2, i)];
+    field[calcIndex(width, width - 1, i)] = field[calcIndex(width, 1, i)];
   }
-
-  
 }
 
 void game(int width, int height, int num_timesteps)

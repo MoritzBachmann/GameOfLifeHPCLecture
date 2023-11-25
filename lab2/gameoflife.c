@@ -11,7 +11,7 @@
 // OPTIONAL: comment this out for No output
 #define NO_OUTOUT
 // OPTIONAL: comment this out for console output
-//#define CONSOLE_OUTPUT
+// #define CONSOLE_OUTPUT
 
 #define calcIndex(width, x, y) ((y) * (width) + (x))
 #define ALIVE 1
@@ -20,15 +20,15 @@
 #define X 0
 #define Y 1
 
-#define START_TIMEMEASUREMENT(name)                                                                                         \
-  struct timeval __FILE__##__func__##name##actualtime;                                                                      \
-  gettimeofday(&__FILE__##__func__##name##actualtime, NULL);                                                                \
-  double __FILE__##__func__##name##s_time = (double)__FILE__##__func__##name##actualtime.tv_sec +                           \
+#define START_TIMEMEASUREMENT(name)                                                               \
+  struct timeval __FILE__##__func__##name##actualtime;                                            \
+  gettimeofday(&__FILE__##__func__##name##actualtime, NULL);                                      \
+  double __FILE__##__func__##name##s_time = (double)__FILE__##__func__##name##actualtime.tv_sec + \
                                             ((double)__FILE__##__func__##name##actualtime.tv_usec / 1000000.0)
 
-#define END_TIMEMEASUREMENT(name, res)                                                                                      \
-  gettimeofday(&__FILE__##__func__##name##actualtime, NULL);                                                                \
-  res = (double)__FILE__##__func__##name##actualtime.tv_sec +                                                               \
+#define END_TIMEMEASUREMENT(name, res)                        \
+  gettimeofday(&__FILE__##__func__##name##actualtime, NULL);  \
+  res = (double)__FILE__##__func__##name##actualtime.tv_sec + \
         ((double)__FILE__##__func__##name##actualtime.tv_usec / 1000000.0) - __FILE__##__func__##name##s_time
 
 typedef uint8_t number_type;
@@ -36,7 +36,8 @@ typedef uint64_t header_type;
 #define NUMBER_TYPE_VTK_NAME "UInt8"
 #define HEADER_TYPE_VTK_NAME "UInt64"
 
-void myexit(const char *s, ...) {
+void myexit(const char *s, ...)
+{
   va_list args;
   va_start(args, s);
   vprintf(s, args);
@@ -45,10 +46,12 @@ void myexit(const char *s, ...) {
   abort();
 }
 
-int testLittleEndian() {
+int testLittleEndian()
+{
   int32_t test = 1;
   char *testdata = (char *)&test;
-  if (testdata[0] == 1) {
+  if (testdata[0] == 1)
+  {
     return 1;
   }
   return 0;
@@ -70,7 +73,8 @@ const char *vtk_header_template =
     "   _";
 
 char vtk_header[10000];
-void create_vtk_header(char *header, int width, int height) {
+void create_vtk_header(char *header, int width, int height)
+{
   snprintf(header, 10000, vtk_header_template, testLittleEndian() ? "LittleEndian" : "BigEndian", width, height, width,
            height);
 }
@@ -78,20 +82,24 @@ void create_vtk_header(char *header, int width, int height) {
 char *vtk_tail = "\n  </AppendedData>\n"
                  "</VTKFile>\n";
 
-void write_vtk_data(FILE *f, char *data, int length) {
-  if (fwrite(data, 1, length, f) != length) {
+void write_vtk_data(FILE *f, char *data, int length)
+{
+  if (fwrite(data, 1, length, f) != length)
+  {
     myexit("Could not write vtk-Data");
   }
 }
 
-void write_field(number_type *currentfield, int width, int height, int timestep) {
+void write_field(number_type *currentfield, int width, int height, int timestep)
+{
 #ifdef NO_OUTOUT
   printf("finished timestep %d\n", timestep);
   return;
 #endif
 #ifdef CONSOLE_OUTPUT
   printf("\033[H");
-  for (int y = 0; y < height; y++) {
+  for (int y = 0; y < height; y++)
+  {
     for (int x = 0; x < width; x++)
       printf(ALIVE == currentfield[calcIndex(width, x, y)] ? "\033[07m  \033[m" : "  ");
     printf("\033[E");
@@ -100,7 +108,8 @@ void write_field(number_type *currentfield, int width, int height, int timestep)
   printf("\ntimestep=%d", timestep);
   usleep(80000);
 #else
-  if (timestep == 0) {
+  if (timestep == 0)
+  {
     mkdir("./gol/", 0777);
     create_vtk_header(vtk_header, width, height);
   }
@@ -141,9 +150,11 @@ int count_neighbours(number_type *currentfield, int pos_x, int pos_y, int width)
   return count;
 }
 
-void evolve(number_type *currentfield, number_type *newfield, int starts[2], int ends[2], int width) {
-  #pragma omp parallel for //collapse(2)
-  for (int i = starts[0]; i < ends[0] - 1; i++){
+void evolve(number_type *currentfield, number_type *newfield, int starts[2], int ends[2], int width)
+{
+#pragma omp parallel for // collapse(2)
+  for (int i = starts[0]; i < ends[0] - 1; i++)
+  {
     for (int j = starts[0]; j < ends[1] - 1; j++)
     {
       number_type *current_cell = currentfield + calcIndex(width, i, j);
@@ -156,34 +167,40 @@ void evolve(number_type *currentfield, number_type *newfield, int starts[2], int
         else
           *new_cell = ALIVE;
       }
-      else if (*current_cell == DEAD)// DEAD
+      else if (*current_cell == DEAD) // DEAD
       {
-         if (neighbours == 3)
+        if (neighbours == 3)
           *new_cell = ALIVE;
         else
           *new_cell = DEAD;
-      }else{
+      }
+      else
+      {
         printf("Warn unexpected cel value \n");
       }
     }
   }
-// void evolve(number_type* currentfield, number_type* newfield, int width, int height) {
-// TODO traverse through each voxel and implement game of live logic and
-// parallelize using OpenMP.
-// HINT: use 'starts' and 'ends'
+  // void evolve(number_type* currentfield, number_type* newfield, int width, int height) {
+  // TODO traverse through each voxel and implement game of live logic and
+  // parallelize using OpenMP.
+  // HINT: use 'starts' and 'ends'
 }
 
-void filling_random(number_type *currentfield, int width, int height) {
+void filling_random(number_type *currentfield, int width, int height)
+{
   int i;
-  for (int y = 1; y < height - 1; y++) {
-    for (int x = 1; x < width - 1; x++) {
+  for (int y = 1; y < height - 1; y++)
+  {
+    for (int x = 1; x < width - 1; x++)
+    {
       i = calcIndex(width, x, y);
       currentfield[i] = (rand() < RAND_MAX / 10) ? 1 : 0; ///< init domain randomly
     }
   }
 }
 
-void filling_runner(number_type *currentfield, int width, int height) {
+void filling_runner(number_type *currentfield, int width, int height)
+{
   int offset_x = width / 3;
   int offset_y = height / 2;
   currentfield[calcIndex(width, offset_x + 0, offset_y + 1)] = ALIVE;
@@ -193,20 +210,22 @@ void filling_runner(number_type *currentfield, int width, int height) {
   currentfield[calcIndex(width, offset_x + 2, offset_y + 2)] = ALIVE;
 }
 
-void apply_periodic_boundaries(number_type *field, int width, int height) {
-  for (size_t i = 1; i < width-1; i++)
+void apply_periodic_boundaries(number_type *field, int width, int height)
+{
+  for (size_t i = 1; i < width - 1; i++)
   {
-    field[calcIndex(width, i, 0)] = field[calcIndex(width, i, 1)];
-    field[calcIndex(width, i, height-1)] = field[calcIndex(width, i, height-2)];
+    field[calcIndex(width, i, 0)] = field[calcIndex(width, i, height - 2)];
+    field[calcIndex(width, i, height - 1)] = field[calcIndex(width, i, 1)];
   }
   for (size_t i = 0; i < height; i++)
   {
-    field[calcIndex(width, 0, i)] = field[calcIndex(width, 1, i)];
-    field[calcIndex(width, width-1, i)] = field[calcIndex(width, width-2, i)];
+    field[calcIndex(width, 0, i)] = field[calcIndex(width, width - 2, i)];
+    field[calcIndex(width, width - 1, i)] = field[calcIndex(width, 1, i)];
   }
 }
 
-void game(int width, int height, int num_timesteps, int *decomposition) {
+void game(int width, int height, int num_timesteps, int *decomposition)
+{
   (void)decomposition; // required for task b suppress warning in task a
   number_type *currentfield = calloc(width * height, sizeof(number_type));
   number_type *newfield = calloc(width * height, sizeof(number_type));
@@ -216,8 +235,8 @@ void game(int width, int height, int num_timesteps, int *decomposition) {
   filling_runner(currentfield, width, height);
   int n;
   int m;
-  int delta_width = width/n;
-  int delta_height = height/m;
+  int delta_width = width / n;
+  int delta_height = height / m;
   int starts[2];
   int ends[2];
   int time = 0;
@@ -226,49 +245,57 @@ void game(int width, int height, int num_timesteps, int *decomposition) {
   ends[X] = width - 1;
   ends[Y] = height - 1;
 
-
-      write_field(currentfield, width, height, time);
-      // TODO 3: implement periodic boundary condition
-      apply_periodic_boundaries(currentfield, width, height);
-    for (time = 1; time <= num_timesteps; time++) {
-      // TODO 2: implement evolve function (see above)
-      for(int i = 0; i< n*M i)
+  write_field(currentfield, width, height, time);
+  // TODO 3: implement periodic boundary condition
+  apply_periodic_boundaries(currentfield, width, height);
+  for (time = 1; time <= num_timesteps; time++)
+  {
+    // TODO 2: implement evolve function (see above)
+    for (int i = 0; i < n * M i)
       evolve(currentfield, newfield, starts, ends, width);
-        // TODO 3: implement periodic boundary condition
-        apply_periodic_boundaries(newfield, width, height);
-        write_field(newfield, width, height, time);
-        // TODO 4: implement SWAP of the fields
-    }
+    // TODO 3: implement periodic boundary condition
+    apply_periodic_boundaries(newfield, width, height);
+    write_field(newfield, width, height, time);
+    // TODO 4: implement SWAP of the fields
+  }
   free(currentfield);
   free(newfield);
 }
 
-int main(int c, char **v) {
+int main(int c, char **v)
+{
 #pragma omp parallel
   {
-    if (omp_get_thread_num() == 0) {
+    if (omp_get_thread_num() == 0)
+    {
       printf("Running with %d threads\n", omp_get_num_threads());
     }
   }
 
   int width, height, num_timesteps;
   int decomposition[2] = {1, 1};
-  if (c == 4 || c == 6) {
+  if (c == 4 || c == 6)
+  {
     width = atoi(v[1]) + 2;     ///< read width + 2 boundary cells (low x, high x)
     height = atoi(v[2]) + 2;    ///< read height + 2 boundary cells (low y, high y)
     num_timesteps = atoi(v[3]); ///< read timesteps
 
-    if (width <= 0) {
+    if (width <= 0)
+    {
       width = 32; ///< default width
     }
-    if (height <= 0) {
+    if (height <= 0)
+    {
       height = 32; ///< default height
     }
-    if (c == 6) {
+    if (c == 6)
+    {
       decomposition[X] = atoi(v[4]); ///< read number of threads in x
       decomposition[Y] = atoi(v[5]); ///< read number of threads in y
     }
-  } else {
+  }
+  else
+  {
     myexit("Too less arguments");
   }
   double elapsed_time;
@@ -278,5 +305,4 @@ int main(int c, char **v) {
 
   END_TIMEMEASUREMENT(measure_game_time, elapsed_time);
   printf("time elapsed: %lf sec\n", elapsed_time);
-
 }
