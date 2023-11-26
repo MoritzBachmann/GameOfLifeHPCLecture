@@ -9,7 +9,7 @@
 #include <sys/types.h>
 #include <unistd.h>
 // OPTIONAL: comment this out for No output
-#define NO_OUTOUT
+// #define NO_OUTOUT
 // OPTIONAL: comment this out for console output
 // #define CONSOLE_OUTPUT
 
@@ -152,10 +152,10 @@ int count_neighbours(number_type *currentfield, int pos_x, int pos_y, int width)
 
 void evolve(number_type *currentfield, number_type *newfield, int starts[2], int ends[2], int width)
 {
-#pragma omp parallel for // collapse(2)
-  for (int i = starts[0]; i < ends[0] - 1; i++)
+  // #pragma omp parallel for // collapse(2)
+  for (int i = starts[0]; i < ends[0]; i++)
   {
-    for (int j = starts[0]; j < ends[1] - 1; j++)
+    for (int j = starts[1]; j < ends[1]; j++)
     {
       number_type *current_cell = currentfield + calcIndex(width, i, j);
       number_type *new_cell = newfield + calcIndex(width, i, j);
@@ -231,35 +231,53 @@ void game(int width, int height, int num_timesteps, int *decomposition)
   number_type *newfield = calloc(width * height, sizeof(number_type));
 
   // TODO 1: use your favorite filling
-  // filling_random (currentfield, width, height);
+  //filling_random (currentfield, width, height);
   filling_runner(currentfield, width, height);
-  int n;
-  int m;
-  int delta_width = width / n;
-  int delta_height = height / m;
+  int delta_height = (height - 2) / decomposition[Y];
+  int delta_width = (width - 2) / decomposition[X];
   int starts[2];
   int ends[2];
   int time = 0;
-  starts[X] = 1;
-  starts[Y] = 1;
-  ends[X] = width - 1;
-  ends[Y] = height - 1;
-
+  int size = decomposition[X] *decomposition[Y];
+  int startsX[size];
+  int startsY[size];
+  int count = 0;
   write_field(currentfield, width, height, time);
   // TODO 3: implement periodic boundary condition
   apply_periodic_boundaries(currentfield, width, height);
+
+for (int i = 1; i < height-delta_height; i= i+delta_height){
+  for (int j = 1; j < width-delta_width; j= j+delta_width)
+  {
+    //printf("count: %d startY %d startX %d \n",count, i,j);
+    startsY[count] = i;
+    startsX[count] = j;
+    count++;
+  }
+}
+
   for (time = 1; time <= num_timesteps; time++)
   {
-    // TODO 2: implement evolve function (see above)
-    for (int i = 0; i < n * M i)
+    #pragma omp parallel num_threads(size) private(starts, ends)
+    {
+      starts[X] = startsX[omp_get_thread_num()];
+      starts[Y] = startsY[omp_get_thread_num()];
+      //printf("start thread: %d  X: %d Y: %d \n",omp_get_thread_num(), starts[X], starts[Y]);
+      ends[X] = starts[X]+delta_width;
+      ends[Y] = starts[Y]+delta_height;
+      //printf("end thread: %d  X: %d Y: %d \n",omp_get_thread_num(), ends[X], ends[Y]);
       evolve(currentfield, newfield, starts, ends, width);
-    // TODO 3: implement periodic boundary condition
-    apply_periodic_boundaries(newfield, width, height);
-    write_field(newfield, width, height, time);
-    // TODO 4: implement SWAP of the fields
-  }
-  free(currentfield);
-  free(newfield);
+    }
+  // TODO 3: implement periodic boundary condition
+  apply_periodic_boundaries(newfield, width, height);
+  write_field(newfield, width, height, time);
+  // TODO 4: implement SWAP of the fields
+  number_type *temp = currentfield;
+  currentfield = newfield;
+  newfield = temp;
+}
+free(currentfield);
+free(newfield);
 }
 
 int main(int c, char **v)
@@ -292,6 +310,9 @@ int main(int c, char **v)
     {
       decomposition[X] = atoi(v[4]); ///< read number of threads in x
       decomposition[Y] = atoi(v[5]); ///< read number of threads in y
+      if ((width-2) % decomposition[X] != 0 || (height-2) % decomposition[Y] != 0){
+        myexit("The field must be divideble by the decomposition");
+      }
     }
   }
   else

@@ -7,6 +7,10 @@
             "args": [
                 "-fdiagnostics-color=always",
                 "-g",
+                "-O3",
+                "-std=gnu99",
+                "-Wall",
+                "-fopenmp",
                 "${file}",
                 "-o",
                 "${fileDirname}/${fileBasenameNoExtension}"
