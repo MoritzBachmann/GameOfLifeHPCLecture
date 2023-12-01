@@ -9,7 +9,7 @@
 #include <sys/types.h>
 #include <unistd.h>
 // OPTIONAL: comment this out for No output
-// #define NO_OUTOUT
+#define NO_OUTOUT
 // OPTIONAL: comment this out for console output
 // #define CONSOLE_OUTPUT
 
@@ -93,7 +93,7 @@ void write_vtk_data(FILE *f, char *data, int length)
 void write_field(number_type *currentfield, int width, int height, int timestep)
 {
 #ifdef NO_OUTOUT
-  printf("finished timestep %d\n", timestep);
+  //printf("finished timestep %d\n", timestep);
   return;
 #endif
 #ifdef CONSOLE_OUTPUT
@@ -127,7 +127,7 @@ void write_field(number_type *currentfield, int width, int height, int timestep)
   // write the tail of the vti file
   write_vtk_data(fp, vtk_tail, strlen(vtk_tail));
   fclose(fp);
-  printf("finished writing timestep %d\n", timestep);
+  //printf("finished writing timestep %d\n", timestep);
 #endif
 }
 
@@ -231,7 +231,7 @@ void game(int width, int height, int num_timesteps, int *decomposition)
   number_type *newfield = calloc(width * height, sizeof(number_type));
 
   // TODO 1: use your favorite filling
-  //filling_random (currentfield, width, height);
+  filling_random (currentfield, width, height);
   filling_runner(currentfield, width, height);
   int delta_height = (height - 2) / decomposition[Y];
   int delta_width = (width - 2) / decomposition[X];
@@ -282,6 +282,7 @@ free(newfield);
 
 int main(int c, char **v)
 {
+/*
 #pragma omp parallel
   {
     if (omp_get_thread_num() == 0)
@@ -289,6 +290,7 @@ int main(int c, char **v)
       printf("Running with %d threads\n", omp_get_num_threads());
     }
   }
+  */
 
   int width, height, num_timesteps;
   int decomposition[2] = {1, 1};
