@@ -115,8 +115,33 @@ void write_field(number_type *currentfield, int width, int height, int timestep)
 
 
 void evolve(number_type *currentfield, number_type *newfield, int width, int height) {
-  // TODO traverse through each voxel and implement game of live logic
-  // HINT: avoid boundaries
+  // #pragma omp parallel for // collapse(2)
+  for (int i = starts[0]; i < ends[0]; i++)
+  {
+    for (int j = starts[1]; j < ends[1]; j++)
+    {
+      number_type *current_cell = currentfield + calcIndex(width, i, j);
+      number_type *new_cell = newfield + calcIndex(width, i, j);
+      int neighbours = count_neighbours(currentfield, i, j, width);
+      if (*current_cell == ALIVE)
+      {
+        if (neighbours < 2 || neighbours > 3)
+          *new_cell = DEAD;
+        else
+          *new_cell = ALIVE;
+      }
+      else if (*current_cell == DEAD) // DEAD
+      {
+        if (neighbours == 3)
+          *new_cell = ALIVE;
+        else
+          *new_cell = DEAD;
+      }
+      else
+      {
+        printf("Warn unexpected cel value \n");
+      }
+    }
 }
 
 void filling_random(number_type *currentfield, int width, int height) {
@@ -140,7 +165,16 @@ void filling_runner(number_type *currentfield, int width, int height) {
 }
 
 void apply_periodic_boundaries(number_type *field, int width, int height) {
-  // TODO: implement periodic boundary copies
+    for (size_t i = 1; i < width - 1; i++)
+  {
+    field[calcIndex(width, i, 0)] = field[calcIndex(width, i, height - 2)];
+    field[calcIndex(width, i, height - 1)] = field[calcIndex(width, i, 1)];
+  }
+  for (size_t i = 0; i < height; i++)
+  {
+    field[calcIndex(width, 0, i)] = field[calcIndex(width, width - 2, i)];
+    field[calcIndex(width, width - 1, i)] = field[calcIndex(width, 1, i)];
+  }
 }
 
 void game(int width, int height, int num_timesteps) {
@@ -163,6 +197,9 @@ void game(int width, int height, int num_timesteps) {
     // TODO 4: implement periodic boundary condition
     apply_periodic_boundaries(newfield, width, height);
     // TODO 3: implement SWAP of the fields
+  number_type *temp = currentfield;
+  currentfield = newfield;
+  newfield = temp;
   }
 
   free(currentfield);
@@ -177,7 +214,7 @@ int main(int c, char **v) {
   int width, height, num_timesteps;
   int process_numX;
   int process_numY;
-  
+  int rank, size, i;
   if (c == 6) {
     width = atoi (v[1]); ///< read width + 2 boundary cells (low x, high x)
     height = atoi (v[2]); ///< read height + 2 boundary cells (low y, high y)
@@ -198,7 +235,12 @@ int main(int c, char **v) {
   }
   
   // TODO 5a: get the global rank of the process and save it to rank_global
-  
+  MPI_Comm_size(MPI_COMM_WORLD, &size);
+  MPI_Comm_rank(MPI_COMM_WORLD, &rank);
+  if (size != process_numX * process_numY) {
+  printf("Communicator size must be %d \n",(c * process_numY));
+  MPI_Abort(MPI_COMM_WORLD, 1);
+  }
   // TODO 5b: get the number of processes and save it to num_tasks variable
   
   // TODO 5c: create a new cartesian communicator of the worker communicator and get the information.
@@ -206,7 +248,8 @@ int main(int c, char **v) {
   int gsizes[2] = {width, height};  // global size of the domain without boundaries
   int lsizes[2];
   
-  /* TODO 5d: create and commit a subarray as a new filetype to describe the local
+  lsize[0] = (width + process_numX - 1) / process_numX;
+    /* TODO 5d: create and commit a subarray as a new filetype to describe the local
    *      worker field as a part of the global field.
    *      Use the global variable 'filetype'.
    * HINT: use MPI_Type_create_subarray and MPI_Type_commit functions
