@@ -116,9 +116,9 @@ void write_field(number_type *currentfield, int width, int height, int timestep)
 
 void evolve(number_type *currentfield, number_type *newfield, int width, int height) {
   // #pragma omp parallel for // collapse(2)
-  for (int i = starts[0]; i < ends[0]; i++)
+  for (int i = start_indices[0]; i < start_indices[0]+width; i++)
   {
-    for (int j = starts[1]; j < ends[1]; j++)
+    for (int j = start_indices[1]; j < start_indices[1]+height; j++)
     {
       number_type *current_cell = currentfield + calcIndex(width, i, j);
       number_type *new_cell = newfield + calcIndex(width, i, j);
@@ -142,6 +142,7 @@ void evolve(number_type *currentfield, number_type *newfield, int width, int hei
         printf("Warn unexpected cel value \n");
       }
     }
+  }
 }
 
 void filling_random(number_type *currentfield, int width, int height) {
@@ -165,6 +166,9 @@ void filling_runner(number_type *currentfield, int width, int height) {
 }
 
 void apply_periodic_boundaries(number_type *field, int width, int height) {
+
+ 
+
     for (size_t i = 1; i < width - 1; i++)
   {
     field[calcIndex(width, i, 0)] = field[calcIndex(width, i, height - 2)];
@@ -177,23 +181,48 @@ void apply_periodic_boundaries(number_type *field, int width, int height) {
   }
 }
 
-void game(int width, int height, int num_timesteps) {
-  number_type *currentfield = calloc(width * height, sizeof(number_type));
-  number_type *newfield = calloc(width * height, sizeof(number_type));
-
+void game(int width, int height, int num_timesteps, int rank) {
+  
+  number_type *local_new_field = calloc(width * height, sizeof(number_type));
   // TODO 1: use your favorite filling
   // filling_random (currentfield, width, height);
-  filling_runner(currentfield, width, height);
+  filling_runner(local_field, width, height);
 
   int time = 0;
-  write_field(currentfield, width, height, time);
+  write_field(local_field, width, height, time);
   // TODO 4: implement periodic boundary condition
+  int left, bottom, right, top;
+
+  MPI_Cart_shift(MPI_COMM_WORLD, 0, -1, *rank, *left );
+  MPI_Cart_shift(MPI_COMM_WORLD, 0, 1, *rank, *right );
+  MPI_Cart_shift(MPI_COMM_WORLD, 1, -1, *rank, *left );
+  MPI_Cart_shift(MPI_COMM_WORLD, 1, 1, *rank, *right );
+
+  int row[2],col[2];
+  row[0] =[width];
+  row[1] = 0;
+  col[0] =[0];
+  col[1] = height; 
+  MPI_Type_create_subarray(1, lsizes,row , [0][0]],
+                         MPI_ORDER_C, MPI_FLOAT, &left_border);
+  MPI_Type_commit(&left_Border);
+  MPI_Type_create_subarray(1, lsizes,row , [width-1][0]],
+                         MPI_ORDER_C, MPI_FLOAT, &right_border);
+  MPI_Type_commit(&left_Border);
+  MPI_Type_create_subarray(1, lsizes,col , [0][0]],
+                         MPI_ORDER_C, MPI_FLOAT, &bottom_border);
+  MPI_Type_commit(&left_Border);
+  MPI_Type_create_subarray(1, lsizes,col , [0][hight-1]],
+                         MPI_ORDER_C, MPI_FLOAT, &top_border);
+  MPI_Type_commit(&left_Border);
+  
   apply_periodic_boundaries(currentfield, width, height);
 
   for (time = 1; time <= num_timesteps; time++) {
     // TODO 2: implement evolve function (see above)
-    evolve(currentfield, newfield, width, height);
-    write_field(newfield, width, height, time);
+    evolve(local_field, newfield, width, height);
+    
+    //write_field(newfield, width, height, time);
     // TODO 4: implement periodic boundary condition
     apply_periodic_boundaries(newfield, width, height);
     // TODO 3: implement SWAP of the fields
@@ -210,7 +239,9 @@ int main(int c, char **v) {
   // TODO 5: implement MPI 
   
   MPI_Init(&c, &v);
-  
+  MPI_Comm cart_comm;
+  MPI_Datatype filetype, memtype;
+
   int width, height, num_timesteps;
   int process_numX;
   int process_numY;
@@ -249,19 +280,48 @@ int main(int c, char **v) {
   int lsizes[2];
   
   lsize[0] = (width + process_numX - 1) / process_numX;
+  lsize[1] =  (height + process_numY - 1) / process_numY;
+
+  int dims[0] = process_numX;
+  int dims[1] = process_numY;
+  int periods[0] = periods[1] = 1;
+  int coords[2];
+  int start_indices[2];
+  MPI_Cart_create(MPI_COMM_WORLD, 2, dims, periods, 0, &cart_comm);
+  MPI_Comm_rank(cart_comm, &rank);
+  MPI_Cart_coords(cart_comm, rank, 2, coords);
+
+  start_indices[0] = coords[0] * lsizes[0];
+  start_indices[1] = coords[1] * lsizes[1];
     /* TODO 5d: create and commit a subarray as a new filetype to describe the local
    *      worker field as a part of the global field.
    *      Use the global variable 'filetype'.
    * HINT: use MPI_Type_create_subarray and MPI_Type_commit functions
    */
+
+  
+  MPI_Type_create_subarray(2, gsizes, lsizes, start_indices,
+                         MPI_ORDER_C, MPI_FLOAT, &filetype);
+  MPI_Type_commit(&filetype);
+
+
    
   /* TODO 5e: Create a derived datatype that describes the layout of the inner local field
    *      in the memory buffer that includes the ghost layer (local field).
    *      This is another subarray datatype!
    *      Use the global variable 'memtype'.
   */
+ int memsizes[2];
+  memsizes[0] = lsizes[0] + 2; /* no. of rows in allocated array */
+  memsizes[1] = lsizes[1] + 2; /* no. of columns in allocated array */
+  intlocal_start_indices[2];
+  local_start_indices[0] = local_start_indices[1] = 1; // one ghost layer on each side
+
+  number_type *local_field = calloc(memsizes[0] * memsizes[1], sizeof(number_type));
+  MPI_Type_create_subarray(2, memsizes, lsizes, start_indices,
+                           MPI_ORDER_C, MPI_FLOAT, &memtype);
   
-  game(lsizes[X], lsizes[Y], num_timesteps, gsizes);
+  game(lsizes[X], lsizes[Y], num_timesteps, gsizes, rank);
   
   MPI_Finalize();
 }
