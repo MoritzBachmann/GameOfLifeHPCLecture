@@ -15,15 +15,15 @@
 #define ALIVE 1
 #define DEAD 0
 
-#define START_TIMEMEASUREMENT(name)                                                                                         \
-  struct timeval __FILE__##__func__##name##actualtime;                                                                      \
-  gettimeofday(&__FILE__##__func__##name##actualtime, NULL);                                                                \
-  double __FILE__##__func__##name##s_time = (double)__FILE__##__func__##name##actualtime.tv_sec +                           \
+#define START_TIMEMEASUREMENT(name)                                                               \
+  struct timeval __FILE__##__func__##name##actualtime;                                            \
+  gettimeofday(&__FILE__##__func__##name##actualtime, NULL);                                      \
+  double __FILE__##__func__##name##s_time = (double)__FILE__##__func__##name##actualtime.tv_sec + \
                                             ((double)__FILE__##__func__##name##actualtime.tv_usec / 1000000.0)
 
-#define END_TIMEMEASUREMENT(name, res)                                                                                      \
-  gettimeofday(&__FILE__##__func__##name##actualtime, NULL);                                                                \
-  res = (double)__FILE__##__func__##name##actualtime.tv_sec +                                                               \
+#define END_TIMEMEASUREMENT(name, res)                        \
+  gettimeofday(&__FILE__##__func__##name##actualtime, NULL);  \
+  res = (double)__FILE__##__func__##name##actualtime.tv_sec + \
         ((double)__FILE__##__func__##name##actualtime.tv_usec / 1000000.0) - __FILE__##__func__##name##s_time
 
 typedef uint8_t number_type;
@@ -31,7 +31,8 @@ typedef uint64_t header_type;
 #define NUMBER_TYPE_VTK_NAME "UInt8"
 #define HEADER_TYPE_VTK_NAME "UInt64"
 
-void myexit(const char *s, ...) {
+void myexit(const char *s, ...)
+{
   va_list args;
   va_start(args, s);
   vprintf(s, args);
@@ -40,10 +41,12 @@ void myexit(const char *s, ...) {
   abort();
 }
 
-int testLittleEndian() {
+int testLittleEndian()
+{
   int32_t test = 1;
   char *testdata = (char *)&test;
-  if (testdata[0] == 1) {
+  if (testdata[0] == 1)
+  {
     return 1;
   }
   return 0;
@@ -65,7 +68,8 @@ const char *vtk_header_template =
     "   _";
 
 char vtk_header[10000];
-void create_vtk_header(char *header, int width, int height) {
+void create_vtk_header(char *header, int width, int height)
+{
   snprintf(header, 10000, vtk_header_template, testLittleEndian() ? "LittleEndian" : "BigEndian", width, height, width,
            height);
 }
@@ -73,16 +77,20 @@ void create_vtk_header(char *header, int width, int height) {
 char *vtk_tail = "\n  </AppendedData>\n"
                  "</VTKFile>\n";
 
-void write_vtk_data(FILE *f, char *data, int length) {
-  if (fwrite(data, 1, length, f) != length) {
+void write_vtk_data(FILE *f, char *data, int length)
+{
+  if (fwrite(data, 1, length, f) != length)
+  {
     myexit("Could not write vtk-Data");
   }
 }
 
-void write_field(number_type *currentfield, int width, int height, int timestep) {
+void write_field(number_type *currentfield, int width, int height, int timestep)
+{
 #ifdef CONSOLE_OUTPUT
   printf("\033[H");
-  for (int y = 0; y < height; y++) {
+  for (int y = 0; y < height; y++)
+  {
     for (int x = 0; x < width; x++)
       printf(ALIVE == currentfield[calcIndex(width, x, y)] ? "\033[07m  \033[m" : "  ");
     printf("\033[E");
@@ -91,7 +99,8 @@ void write_field(number_type *currentfield, int width, int height, int timestep)
   printf("\ntimestep=%d", timestep);
   usleep(80000);
 #else
-  if (timestep == 0) {
+  if (timestep == 0)
+  {
     mkdir("./gol/", 0777);
     create_vtk_header(vtk_header, width, height);
   }
@@ -113,12 +122,12 @@ void write_field(number_type *currentfield, int width, int height, int timestep)
 #endif
 }
 
-
-void evolve(number_type *currentfield, number_type *newfield, int width, int height) {
+void evolve(number_type *currentfield, number_type *newfield, int width, int height, int *start_indices)
+{
   // #pragma omp parallel for // collapse(2)
-  for (int i = start_indices[0]; i < start_indices[0]+width; i++)
+  for (int i = start_indices[0]; i < start_indices[0] + width; i++)
   {
-    for (int j = start_indices[1]; j < start_indices[1]+height; j++)
+    for (int j = start_indices[1]; j < start_indices[1] + height; j++)
     {
       number_type *current_cell = currentfield + calcIndex(width, i, j);
       number_type *new_cell = newfield + calcIndex(width, i, j);
@@ -145,17 +154,21 @@ void evolve(number_type *currentfield, number_type *newfield, int width, int hei
   }
 }
 
-void filling_random(number_type *currentfield, int width, int height) {
+void filling_random(number_type *currentfield, int width, int height)
+{
   int i;
-  for (int y = 1; y < height - 1; y++) {
-    for (int x = 1; x < width - 1; x++) {
+  for (int y = 1; y < height - 1; y++)
+  {
+    for (int x = 1; x < width - 1; x++)
+    {
       i = calcIndex(width, x, y);
       currentfield[i] = (rand() < RAND_MAX / 10) ? 1 : 0; ///< init domain randomly
     }
   }
 }
 
-void filling_runner(number_type *currentfield, int width, int height) {
+void filling_runner(number_type *currentfield, int width, int height)
+{
   int offset_x = width / 3;
   int offset_y = height / 2;
   currentfield[calcIndex(width, offset_x + 0, offset_y + 1)] = ALIVE;
@@ -165,11 +178,9 @@ void filling_runner(number_type *currentfield, int width, int height) {
   currentfield[calcIndex(width, offset_x + 2, offset_y + 2)] = ALIVE;
 }
 
-void apply_periodic_boundaries(number_type *field, int width, int height) {
-
- 
-
-    for (size_t i = 1; i < width - 1; i++)
+void apply_periodic_boundaries(number_type *field, int width, int height, int *start_indices)
+{
+  for (size_t i = 1; i < width - 1; i++)
   {
     field[calcIndex(width, i, 0)] = field[calcIndex(width, i, height - 2)];
     field[calcIndex(width, i, height - 1)] = field[calcIndex(width, i, 1)];
@@ -181,110 +192,35 @@ void apply_periodic_boundaries(number_type *field, int width, int height) {
   }
 }
 
-void game(int width, int height, int num_timesteps, int rank) {
-  
-  number_type *local_new_field = calloc(width * height, sizeof(number_type));
-  // TODO 1: use your favorite filling
-  // filling_random (currentfield, width, height);
-  filling_runner(local_field, width, height);
-
-  int time = 0;
-  write_field(local_field, width, height, time);
-  // TODO 4: implement periodic boundary condition
-  int left, bottom, right, top;
-
-  MPI_Cart_shift(MPI_COMM_WORLD, 0, -1, *rank, *left );
-  MPI_Cart_shift(MPI_COMM_WORLD, 0, 1, *rank, *right );
-  MPI_Cart_shift(MPI_COMM_WORLD, 1, -1, *rank, *left );
-  MPI_Cart_shift(MPI_COMM_WORLD, 1, 1, *rank, *right );
-
-  int row[2],col[2];
-  row[0] =[width];
-  row[1] = 0;
-  col[0] =[0];
-  col[1] = height; 
-  MPI_Type_create_subarray(1, lsizes,row , [0][0]],
-                         MPI_ORDER_C, MPI_FLOAT, &left_border);
-  MPI_Type_commit(&left_Border);
-  MPI_Type_create_subarray(1, lsizes,row , [width-1][0]],
-                         MPI_ORDER_C, MPI_FLOAT, &right_border);
-  MPI_Type_commit(&left_Border);
-  MPI_Type_create_subarray(1, lsizes,col , [0][0]],
-                         MPI_ORDER_C, MPI_FLOAT, &bottom_border);
-  MPI_Type_commit(&left_Border);
-  MPI_Type_create_subarray(1, lsizes,col , [0][hight-1]],
-                         MPI_ORDER_C, MPI_FLOAT, &top_border);
-  MPI_Type_commit(&left_Border);
-  
-  apply_periodic_boundaries(currentfield, width, height);
-
-  for (time = 1; time <= num_timesteps; time++) {
-    // TODO 2: implement evolve function (see above)
-    evolve(local_field, newfield, width, height);
-    
-    //write_field(newfield, width, height, time);
-    // TODO 4: implement periodic boundary condition
-    apply_periodic_boundaries(newfield, width, height);
-    // TODO 3: implement SWAP of the fields
-  number_type *temp = currentfield;
-  currentfield = newfield;
-  newfield = temp;
-  }
-
-  free(currentfield);
-  free(newfield);
-}
-
-int main(int c, char **v) {
-  // TODO 5: implement MPI 
-  
-  MPI_Init(&c, &v);
+void game(int c, int process_numX, int process_numY, int width, int height, int num_timesteps)
+{
   MPI_Comm cart_comm;
-  MPI_Datatype filetype, memtype;
-
-  int width, height, num_timesteps;
-  int process_numX;
-  int process_numY;
+  MPI_File fh;
+  MPI_Datatype filetype, memtype, left_border, right_border, bottom_border, top_border;
   int rank, size, i;
-  if (c == 6) {
-    width = atoi (v[1]); ///< read width + 2 boundary cells (low x, high x)
-    height = atoi (v[2]); ///< read height + 2 boundary cells (low y, high y)
-    num_timesteps = atoi (v[3]); ///< read timesteps
-    
-    if (width <= 0) {
-      width = 32; ///< default width
-    }
-    if (height <= 0) {
-      height = 32; ///< default height
-    }
-    process_numX = atoi (v[4]); ///< read number of processes in X
-    process_numY = atoi (v[5]); ///< read number of processes in Y
-    
-  }
-  else {
-   myexit("Too less arguments");
-  }
-  
   // TODO 5a: get the global rank of the process and save it to rank_global
   MPI_Comm_size(MPI_COMM_WORLD, &size);
   MPI_Comm_rank(MPI_COMM_WORLD, &rank);
-  if (size != process_numX * process_numY) {
-  printf("Communicator size must be %d \n",(c * process_numY));
-  MPI_Abort(MPI_COMM_WORLD, 1);
+  if (size != process_numX * process_numY)
+  {
+    printf("Communicator size must be %d \n", (c * process_numY));
+    MPI_Abort(MPI_COMM_WORLD, 1);
   }
   // TODO 5b: get the number of processes and save it to num_tasks variable
-  
-  // TODO 5c: create a new cartesian communicator of the worker communicator and get the information.
-  
-  int gsizes[2] = {width, height};  // global size of the domain without boundaries
-  int lsizes[2];
-  
-  lsize[0] = (width + process_numX - 1) / process_numX;
-  lsize[1] =  (height + process_numY - 1) / process_numY;
 
-  int dims[0] = process_numX;
-  int dims[1] = process_numY;
-  int periods[0] = periods[1] = 1;
+  // TODO 5c: create a new cartesian communicator of the worker communicator and get the information.
+
+  int gsizes[2] = {width, height}; // global size of the domain without boundaries
+  int lsizes[2];
+
+  lsizes[0] = (width + process_numX - 1) / process_numX;
+  lsizes[1] = (height + process_numY - 1) / process_numY;
+  
+  int dims[2];
+  dims[0] = process_numX;
+  dims[1] = process_numY;
+  int periods[2];
+  periods[0] = periods[1] = 1;
   int coords[2];
   int start_indices[2];
   MPI_Cart_create(MPI_COMM_WORLD, 2, dims, periods, 0, &cart_comm);
@@ -293,35 +229,163 @@ int main(int c, char **v) {
 
   start_indices[0] = coords[0] * lsizes[0];
   start_indices[1] = coords[1] * lsizes[1];
-    /* TODO 5d: create and commit a subarray as a new filetype to describe the local
+  /* TODO 5d: create and commit a subarray as a new filetype to describe the local
    *      worker field as a part of the global field.
    *      Use the global variable 'filetype'.
    * HINT: use MPI_Type_create_subarray and MPI_Type_commit functions
    */
 
-  
   MPI_Type_create_subarray(2, gsizes, lsizes, start_indices,
-                         MPI_ORDER_C, MPI_FLOAT, &filetype);
+                           MPI_ORDER_C, MPI_FLOAT, &filetype);
   MPI_Type_commit(&filetype);
 
+  MPI_File_open(MPI_COMM_WORLD, "/gol/datafile",
+  MPI_MODE_CREATE | MPI_MODE_WRONLY,
+  MPI_INFO_NULL, &fh);
+  MPI_File_set_view(fh, 0, MPI_FLOAT, filetype, "native",
+  MPI_INFO_NULL);
 
-   
+
+
   /* TODO 5e: Create a derived datatype that describes the layout of the inner local field
    *      in the memory buffer that includes the ghost layer (local field).
    *      This is another subarray datatype!
    *      Use the global variable 'memtype'.
-  */
- int memsizes[2];
+   */
+  int memsizes[2];
   memsizes[0] = lsizes[0] + 2; /* no. of rows in allocated array */
   memsizes[1] = lsizes[1] + 2; /* no. of columns in allocated array */
-  intlocal_start_indices[2];
+  int local_start_indices[2];
   local_start_indices[0] = local_start_indices[1] = 1; // one ghost layer on each side
 
   number_type *local_field = calloc(memsizes[0] * memsizes[1], sizeof(number_type));
+  number_type *newfield = calloc(memsizes[0] * memsizes[1], sizeof(number_type));
+  // probably i do not need this
   MPI_Type_create_subarray(2, memsizes, lsizes, start_indices,
                            MPI_ORDER_C, MPI_FLOAT, &memtype);
+
+  // TODO 1: use your favorite filling
+  // filling_random (currentfield, width, height);
+  filling_runner(local_field, width, height);
+
+  int time = 0;
+  write_field(local_field, width, height, time);
+  // TODO 4: implement periodic boundary condition
+  int nbr_left, nbr_bottom, nbr_right, nbr_top, corner_b_l, bcorner_b_r, corner_t_l, corner_t_r;
+
+  MPI_Cart_shift(MPI_COMM_WORLD, 0, -1, &rank, &nbr_left);
+  MPI_Cart_shift(MPI_COMM_WORLD, 1, -1, &rank, &nbr_bottom);
+  MPI_Cart_shift(MPI_COMM_WORLD, 0, 1, &rank, &nbr_right);
+  MPI_Cart_shift(MPI_COMM_WORLD, 1, 1, &rank, &nbr_top);
+  /*
+  MPI_Cart_shift(MPI_COMM_WORLD, 0, -1, *left, *corner_b_l);
+  MPI_Cart_shift(MPI_COMM_WORLD, 0, 1, *left, *corner_t_l);
+  MPI_Cart_shift(MPI_COMM_WORLD, 1, -1, *right, *corner_b_r);
+  MPI_Cart_shift(MPI_COMM_WORLD, 1, 1, *right, *corner_t_r );
+  */
+  int row[2], col[2];
+  row[0] = width;
+  row[1] = 0;
+  col[0] = 0;
+  col[1] = height;
+  int starts[2] = {0, 0};
+  MPI_Type_create_subarray(1, lsizes, row, starts,
+                           MPI_ORDER_C, MPI_FLOAT, &left_border);
+  MPI_Type_commit(&left_border);
+  MPI_Type_create_subarray(1, lsizes, col, starts,
+                           MPI_ORDER_C, MPI_FLOAT, &bottom_border);
+  starts[0] = width - 1;
+  MPI_Type_create_subarray(1, lsizes, row, starts,
+                           MPI_ORDER_C, MPI_FLOAT, &right_border);
+  MPI_Type_commit(&left_border);
+
+  MPI_Type_commit(&left_border);
+  starts[0] = 0;
+  starts[1] = height - 1;
+  MPI_Type_create_subarray(1, lsizes, col, starts,
+                           MPI_ORDER_C, MPI_FLOAT, &top_border);
+  MPI_Type_commit(&left_border);
+
+  MPI_Sendrecv(lsizes, 1, left_border, nbr_left, 1, lsizes, 1, right_border, nbr_right, 1, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
+  MPI_Sendrecv(lsizes, 1, right_border, nbr_right, 1, lsizes, 1, left_border, nbr_left, 1, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
+  MPI_Sendrecv(lsizes, 1, bottom_border, nbr_bottom, 1, lsizes, 1, top_border, nbr_top, 1, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
+  MPI_Sendrecv(lsizes, 1, top_border, nbr_top, 1, lsizes, 1, bottom_border, nbr_bottom, 1, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
+
+  // apply_periodic_boundaries(currentfield, width, height);
+  if (rank == 0)
+  {
+    number_type *global_field = calloc(gsizes[0] * gsizes[1], sizeof(number_type));
+    
+  }
   
-  game(lsizes[X], lsizes[Y], num_timesteps, gsizes, rank);
-  
+
+  for (time = 1; time <= num_timesteps; time++)
+  {
+    // TODO 2: implement evolve function (see above)
+    evolve(local_field, newfield, width, height, start_indices);
+
+    // write_field(newfield, width, height, time);
+    //  TODO 4: implement periodic boundary condition
+    //apply_periodic_boundaries(newfield, width, height);
+    // TODO 3: implement SWAP of the fields
+
+
+    number_type *temp = local_field;
+    local_field = newfield;
+    newfield = temp;
+  }
+
+  free(local_field);
+  free(newfield);
+}
+write( int *newfield, int rank, int width, int height, int time){
+  // instead use MPI_File_write_all this
+  if (rank == 0)
+  {
+    MPI_Allgather();
+    
+    //assemble arrays together
+
+    
+  }else{
+    MPI_Send(newfield, 1, filetype, 0, 1 ,MPI_COMM_WORLD);
+  }
+
+}
+
+int main(int c, char **v)
+{
+  // TODO 5: implement MPI
+
+  MPI_Init(&c, &v);
+
+  int width, height, num_timesteps;
+  int process_numX;
+  int process_numY;
+
+  if (c == 6)
+  {
+    width = atoi(v[1]);         ///< read width + 2 boundary cells (low x, high x)
+    height = atoi(v[2]);        ///< read height + 2 boundary cells (low y, high y)
+    num_timesteps = atoi(v[3]); ///< read timesteps
+
+    if (width <= 0)
+    {
+      width = 32; ///< default width
+    }
+    if (height <= 0)
+    {
+      height = 32; ///< default height
+    }
+    process_numX = atoi(v[4]); ///< read number of processes in X
+    process_numY = atoi(v[5]); ///< read number of processes in Y
+  }
+  else
+  {
+    myexit("Too less arguments");
+  }
+
+  game(c, process_numX, process_numY, width, height, num_timesteps);
+
   MPI_Finalize();
 }
