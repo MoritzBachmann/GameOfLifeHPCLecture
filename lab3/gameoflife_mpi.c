@@ -121,6 +121,24 @@ void write_field(number_type *currentfield, int width, int height, int timestep)
   printf("finished writing timestep %d\n", timestep);
 #endif
 }
+int count_neighbours(number_type *currentfield, int pos_x, int pos_y, int width)
+{
+  int count = 0;
+  for (int i = pos_x - 1; i <= pos_x + 1; i++)
+  {
+    for (int j = pos_y - 1; j <= pos_y + 1; j++)
+    {
+      int t = currentfield[calcIndex(width, i, j)];
+      if (t == ALIVE)
+      {
+        count++;
+      }
+    }
+  }
+  if (currentfield[calcIndex(width, pos_x, pos_y)] == ALIVE)
+    count--;
+  return count;
+}
 
 void evolve(number_type *currentfield, number_type *newfield, int width, int height, int *start_indices)
 {
@@ -196,6 +214,7 @@ void game(int c, int process_numX, int process_numY, int width, int height, int 
 {
   MPI_Comm cart_comm;
   MPI_File fh;
+  MPI_Status status;
   MPI_Datatype filetype, memtype, left_border, right_border, bottom_border, top_border;
   int rank, size, i;
   // TODO 5a: get the global rank of the process and save it to rank_global
@@ -203,7 +222,7 @@ void game(int c, int process_numX, int process_numY, int width, int height, int 
   MPI_Comm_rank(MPI_COMM_WORLD, &rank);
   if (size != process_numX * process_numY)
   {
-    printf("Communicator size must be %d \n", (c * process_numY));
+    printf("Communicator size is %d but must be %d \n", size,(process_numX * process_numY));
     MPI_Abort(MPI_COMM_WORLD, 1);
   }
   // TODO 5b: get the number of processes and save it to num_tasks variable
@@ -239,12 +258,6 @@ void game(int c, int process_numX, int process_numY, int width, int height, int 
                            MPI_ORDER_C, MPI_FLOAT, &filetype);
   MPI_Type_commit(&filetype);
 
-  MPI_File_open(MPI_COMM_WORLD, "/gol/datafile",
-  MPI_MODE_CREATE | MPI_MODE_WRONLY,
-  MPI_INFO_NULL, &fh);
-  MPI_File_set_view(fh, 0, MPI_FLOAT, filetype, "native",
-  MPI_INFO_NULL);
-
 
 
   /* TODO 5e: Create a derived datatype that describes the layout of the inner local field
@@ -269,7 +282,7 @@ void game(int c, int process_numX, int process_numY, int width, int height, int 
   filling_runner(local_field, width, height);
 
   int time = 0;
-  write_field(local_field, width, height, time);
+  //write_field(local_field, width, height, time);
   // TODO 4: implement periodic boundary condition
   int nbr_left, nbr_bottom, nbr_right, nbr_top, corner_b_l, bcorner_b_r, corner_t_l, corner_t_r;
 
@@ -289,6 +302,7 @@ void game(int c, int process_numX, int process_numY, int width, int height, int 
   col[0] = 0;
   col[1] = height;
   int starts[2] = {0, 0};
+  /*
   MPI_Type_create_subarray(1, lsizes, row, starts,
                            MPI_ORDER_C, MPI_FLOAT, &left_border);
   MPI_Type_commit(&left_border);
@@ -310,7 +324,7 @@ void game(int c, int process_numX, int process_numY, int width, int height, int 
   MPI_Sendrecv(lsizes, 1, right_border, nbr_right, 1, lsizes, 1, left_border, nbr_left, 1, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
   MPI_Sendrecv(lsizes, 1, bottom_border, nbr_bottom, 1, lsizes, 1, top_border, nbr_top, 1, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
   MPI_Sendrecv(lsizes, 1, top_border, nbr_top, 1, lsizes, 1, bottom_border, nbr_bottom, 1, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
-
+*/
   // apply_periodic_boundaries(currentfield, width, height);
   if (rank == 0)
   {
@@ -329,6 +343,16 @@ void game(int c, int process_numX, int process_numY, int width, int height, int 
     //apply_periodic_boundaries(newfield, width, height);
     // TODO 3: implement SWAP of the fields
 
+    MPI_File_open(MPI_COMM_WORLD, "/gol/datafile",
+      MPI_MODE_CREATE | MPI_MODE_WRONLY,
+      MPI_INFO_NULL, &fh);
+    MPI_File_set_view(fh, 0, MPI_FLOAT, filetype, "native",
+      MPI_INFO_NULL);
+    MPI_File_write_all(fh, local_field, 1,
+      filetype, &status);
+    MPI_File_close(&fh);
+
+
 
     number_type *temp = local_field;
     local_field = newfield;
@@ -338,20 +362,25 @@ void game(int c, int process_numX, int process_numY, int width, int height, int 
   free(local_field);
   free(newfield);
 }
-write( int *newfield, int rank, int width, int height, int time){
+
+void _write( int *newfield, int rank, int width, int height, int time){
   // instead use MPI_File_write_all this
-  if (rank == 0)
-  {
-    MPI_Allgather();
-    
-    //assemble arrays together
-
-    
-  }else{
-    MPI_Send(newfield, 1, filetype, 0, 1 ,MPI_COMM_WORLD);
+  /*
+  if (myrank != 0)
+  MPI_Send(buf, BUFSIZE, MPI_INT, 0, 99, MPI_COMM_WORLD);
+  else {
+    FILE *myfile;
+    myfile = fopen("testfile", "w");
+    fwrite(buf, sizeof(int), BUFSIZE, myfile);
+    for (i = 1 ; i < numprocs; i++) {
+    MPI_Recv(buf, BUFSIZE, MPI_INT, i, 99, MPI_COMM_WORLD, &status);
+    fwrite(buf, sizeof(int), BUFSIZE, myfile);
+    }
+    fclose(myfile);
   }
-
+  */
 }
+
 
 int main(int c, char **v)
 {
