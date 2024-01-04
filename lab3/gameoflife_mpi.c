@@ -166,7 +166,7 @@ void evolve(number_type *currentfield, number_type *newfield, int width, int hei
       }
       else
       {
-        printf("Warn unexpected cel value \n");
+        printf("Warn unexpected cel value: %d \n", *current_cell);
       }
     }
   }
@@ -253,10 +253,13 @@ void game(int c, int process_numX, int process_numY, int width, int height, int 
    *      Use the global variable 'filetype'.
    * HINT: use MPI_Type_create_subarray and MPI_Type_commit functions
    */
-
+if (rank == 0)
+{
   MPI_Type_create_subarray(2, gsizes, lsizes, start_indices,
-                           MPI_ORDER_C, MPI_FLOAT, &filetype);
+                           MPI_ORDER_C, MPI_INT, &filetype);
   MPI_Type_commit(&filetype);
+}
+
 
 
 
@@ -274,8 +277,10 @@ void game(int c, int process_numX, int process_numY, int width, int height, int 
   number_type *local_field = calloc(memsizes[0] * memsizes[1], sizeof(number_type));
   number_type *newfield = calloc(memsizes[0] * memsizes[1], sizeof(number_type));
   // probably i do not need this
+  /*
   MPI_Type_create_subarray(2, memsizes, lsizes, start_indices,
-                           MPI_ORDER_C, MPI_FLOAT, &memtype);
+                           MPI_ORDER_C, MPI_INT, &memtype);
+                           */
 
   // TODO 1: use your favorite filling
   // filling_random (currentfield, width, height);
@@ -284,17 +289,21 @@ void game(int c, int process_numX, int process_numY, int width, int height, int 
   int time = 0;
   //write_field(local_field, width, height, time);
   // TODO 4: implement periodic boundary condition
-  int nbr_left, nbr_bottom, nbr_right, nbr_top, corner_b_l, bcorner_b_r, corner_t_l, corner_t_r;
 
-  MPI_Cart_shift(MPI_COMM_WORLD, 0, -1, &rank, &nbr_left);
-  MPI_Cart_shift(MPI_COMM_WORLD, 1, -1, &rank, &nbr_bottom);
-  MPI_Cart_shift(MPI_COMM_WORLD, 0, 1, &rank, &nbr_right);
-  MPI_Cart_shift(MPI_COMM_WORLD, 1, 1, &rank, &nbr_top);
+  enum DIRECTIONS {DOWN, UP, LEFT, RIGHT};
+  char* neighbours_names[4] = {"down", "up", "left", "right"};
+  int neighbours_ranks[4];
+ 
+  // Let consider dims[0] = X, so the shift tells us our left and right neighbours
+  MPI_Cart_shift(cart_comm, 0, 1, &neighbours_ranks[LEFT], &neighbours_ranks[RIGHT]);
+ 
+  // Let consider dims[1] = Y, so the shift tells us our up and down neighbours
+  MPI_Cart_shift(cart_comm, 1, 1, &neighbours_ranks[DOWN], &neighbours_ranks[UP]);
   /*
-  MPI_Cart_shift(MPI_COMM_WORLD, 0, -1, *left, *corner_b_l);
-  MPI_Cart_shift(MPI_COMM_WORLD, 0, 1, *left, *corner_t_l);
-  MPI_Cart_shift(MPI_COMM_WORLD, 1, -1, *right, *corner_b_r);
-  MPI_Cart_shift(MPI_COMM_WORLD, 1, 1, *right, *corner_t_r );
+  MPI_Cart_shift(cart_comm, 0, -1, *left, *corner_b_l);
+  MPI_Cart_shift(cart_comm, 0, 1, *left, *corner_t_l);
+  MPI_Cart_shift(cart_comm, 1, -1, *right, *corner_b_r);
+  MPI_Cart_shift(cart_comm, 1, 1, *right, *corner_t_r );
   */
   int row[2], col[2];
   row[0] = width;
@@ -302,29 +311,29 @@ void game(int c, int process_numX, int process_numY, int width, int height, int 
   col[0] = 0;
   col[1] = height;
   int starts[2] = {0, 0};
-  /*
-  MPI_Type_create_subarray(1, lsizes, row, starts,
-                           MPI_ORDER_C, MPI_FLOAT, &left_border);
-  MPI_Type_commit(&left_border);
-  MPI_Type_create_subarray(1, lsizes, col, starts,
-                           MPI_ORDER_C, MPI_FLOAT, &bottom_border);
-  starts[0] = width - 1;
-  MPI_Type_create_subarray(1, lsizes, row, starts,
-                           MPI_ORDER_C, MPI_FLOAT, &right_border);
+  
+  MPI_Type_create_subarray(2, lsizes, row, starts,
+                           MPI_ORDER_C, MPI_INT, &left_border);
   MPI_Type_commit(&left_border);
 
-  MPI_Type_commit(&left_border);
+  MPI_Type_create_subarray(2, lsizes, col, starts,
+                           MPI_ORDER_C, MPI_INT, &bottom_border);
+  MPI_Type_commit(&bottom_border);
+  starts[0] = width - 1;
+  MPI_Type_create_subarray(2, lsizes, row, starts,
+                           MPI_ORDER_C, MPI_INT, &right_border);
+  MPI_Type_commit(&right_border);
   starts[0] = 0;
   starts[1] = height - 1;
-  MPI_Type_create_subarray(1, lsizes, col, starts,
-                           MPI_ORDER_C, MPI_FLOAT, &top_border);
-  MPI_Type_commit(&left_border);
+  MPI_Type_create_subarray(2, lsizes, col, starts,
+                           MPI_ORDER_C, MPI_INT, &top_border);
+  MPI_Type_commit(&top_border);
 
-  MPI_Sendrecv(lsizes, 1, left_border, nbr_left, 1, lsizes, 1, right_border, nbr_right, 1, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
-  MPI_Sendrecv(lsizes, 1, right_border, nbr_right, 1, lsizes, 1, left_border, nbr_left, 1, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
-  MPI_Sendrecv(lsizes, 1, bottom_border, nbr_bottom, 1, lsizes, 1, top_border, nbr_top, 1, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
-  MPI_Sendrecv(lsizes, 1, top_border, nbr_top, 1, lsizes, 1, bottom_border, nbr_bottom, 1, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
-*/
+  MPI_Sendrecv(lsizes, 1, left_border, neighbours_ranks[LEFT], 1, lsizes, 1, right_border, neighbours_ranks[RIGHT], 1, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
+  MPI_Sendrecv(lsizes, 1, right_border, neighbours_ranks[RIGHT], 1, lsizes, 1, left_border, neighbours_ranks[LEFT], 1, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
+  MPI_Sendrecv(lsizes, 1, bottom_border, neighbours_ranks[DOWN], 1, lsizes, 1, top_border, neighbours_ranks[UP], 1, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
+  MPI_Sendrecv(lsizes, 1, top_border, neighbours_ranks[UP], 1, lsizes, 1, bottom_border, neighbours_ranks[DOWN], 1, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
+
   // apply_periodic_boundaries(currentfield, width, height);
   if (rank == 0)
   {
@@ -346,7 +355,7 @@ void game(int c, int process_numX, int process_numY, int width, int height, int 
     MPI_File_open(MPI_COMM_WORLD, "/gol/datafile",
       MPI_MODE_CREATE | MPI_MODE_WRONLY,
       MPI_INFO_NULL, &fh);
-    MPI_File_set_view(fh, 0, MPI_FLOAT, filetype, "native",
+    MPI_File_set_view(fh, 0, MPI_INT, filetype, "native",
       MPI_INFO_NULL);
     MPI_File_write_all(fh, local_field, 1,
       filetype, &status);

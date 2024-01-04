@@ -119,19 +119,65 @@ void write_field(number_type *currentfield, int width, int height, int timestep)
 }
 
 SIMD_TYPE load_simd_vector(number_type* field_pointer) {
-	// TODO implement read input of cell values into SIMD vector
+	return  _mm256_loadu_epi8(field_pointer);
 }
 
 void store_simd_vector(SIMD_TYPE source, number_type* destination) {
-	// TODO implement write output of SIMD vector into the field
+	_mm256_storeu_epi8(destination, source);
+}
+SIMD_TYPE add_simd_vector(SIMD_TYPE a, SIMD_TYPE b) {
+	 return _mm256_adds_epu8(a, b);
 }
 
+SIMD_TYPE count_neibours(number_type** neighbor_pointer) {
+  SIMD_TYPE n0 = load_simd_vector(neighbor_pointer[0]);
+  SIMD_TYPE n1 = load_simd_vector(neighbor_pointer[1]);
+  SIMD_TYPE n2 = load_simd_vector(neighbor_pointer[2]);
+  SIMD_TYPE n3 = load_simd_vector(neighbor_pointer[3]);
+  SIMD_TYPE n4 = load_simd_vector(neighbor_pointer[4]);
+  SIMD_TYPE n5 = load_simd_vector(neighbor_pointer[5]);
+  SIMD_TYPE n6 = load_simd_vector(neighbor_pointer[6]);
+  SIMD_TYPE n7 = load_simd_vector(neighbor_pointer[7]);
+  SIMD_TYPE n = _mm256_adds_epu8(n0, n1);
+  n =_mm256_adds_epu8(n, n2);
+  n =_mm256_adds_epu8(n, n3);
+  n =_mm256_adds_epu8(n, n4);
+  n =_mm256_adds_epu8(n, n5);
+  n =_mm256_adds_epu8(n, n6);
+  n =_mm256_adds_epu8(n, n7);
+  return n;
+}
 
 void evolve(number_type *currentfield, number_type *newfield, int width, int height, number_type* source_pointer, number_type* destination_pointer, number_type** neighbor_pointer) {
+  for (size_t i = 0; i < height; i++) {
+    for (size_t j = 0; j < width; j += sizeof(SIMD_TYPE)) {
+  source_pointer = currentfield + i*width+j;
+  destination_pointer = currentfield + i*width+j;
+  neighbor_pointer[0] = source_pointer -1;
+  neighbor_pointer[1] = source_pointer +1;
+  neighbor_pointer[2] = source_pointer - width;
+  neighbor_pointer[3] = source_pointer - width-1;
+  neighbor_pointer[4] = source_pointer - width+1;
+  neighbor_pointer[5] = source_pointer + width;
+  neighbor_pointer[6] = source_pointer + width-1;
+  neighbor_pointer[7] = source_pointer + width+1;
+
+  SIMD_TYPE current = load_simd_vector(source_pointer);
+  SIMD_TYPE n = count_neibours(neighbor_pointer);
+  SIMD_TYPE three = _mm256_set1_epi8(3);
+  SIMD_TYPE two = _mm256_set1_epi8(2);
+  SIMD_TYPE alive_con1 = _mm256_cmpeq_epi8(n,three); // if neibours == 3 then alive
+  SIMD_TYPE alive_con2 = _mm256_or_epi64(current, _mm256_cmpeq_epi8(n,two)); // if current == alive and neigbours == 2 then alive
+  SIMD_TYPE new = _mm256_or_epi64(alive_con1, alive_con2);
+  store_simd_vector(new, destination_pointer);
+    }
+  }
+
+
+  
   // TODO traverse through a vector of voxels (length CELLS) and use SIMD intrinsics to implement game of live logic
   // HINT: avoid boundaries
-  // HINT: create a SIMD vector for currentfield, newfield and each neighbor (eight in total)
-
+  // HINT: create a SIMD vector for currentfield, newfield and each neighbor (eight in total
 }
 
 void filling_random(number_type *currentfield, int width, int height) {
@@ -155,7 +201,16 @@ void filling_runner(number_type *currentfield, int width, int height) {
 }
 
 void apply_periodic_boundaries(number_type *field, int width, int height) {
-  // TODO: implement periodic boundary copies (same as lab1)
+  for (size_t i = 1; i < width - 1; i++)
+  {
+    field[calcIndex(width, i, 0)] = field[calcIndex(width, i, height - 2)];
+    field[calcIndex(width, i, height - 1)] = field[calcIndex(width, i, 1)];
+  }
+  for (size_t i = 0; i < height; i++)
+  {
+    field[calcIndex(width, 0, i)] = field[calcIndex(width, width - 2, i)];
+    field[calcIndex(width, width - 1, i)] = field[calcIndex(width, 1, i)];
+  }
 }
 
 void game(int width, int height, int num_timesteps) {
