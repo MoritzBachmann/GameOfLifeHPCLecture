@@ -17,26 +17,27 @@
 #define calcIndex(width, x, y) ((y) * (width) + (x))
 #define ALIVE 1
 #define DEAD 0
-#define CELLS 4 	// NUMBER OF CELLS TO VECTORIZE
+#define CELLS 4 // NUMBER OF CELLS TO VECTORIZE
 
-#define START_TIMEMEASUREMENT(name)                                                                                         \
-  struct timeval __FILE__##__func__##name##actualtime;                                                                      \
-  gettimeofday(&__FILE__##__func__##name##actualtime, NULL);                                                                \
-  double __FILE__##__func__##name##s_time = (double)__FILE__##__func__##name##actualtime.tv_sec +                           \
+#define START_TIMEMEASUREMENT(name)                                                               \
+  struct timeval __FILE__##__func__##name##actualtime;                                            \
+  gettimeofday(&__FILE__##__func__##name##actualtime, NULL);                                      \
+  double __FILE__##__func__##name##s_time = (double)__FILE__##__func__##name##actualtime.tv_sec + \
                                             ((double)__FILE__##__func__##name##actualtime.tv_usec / 1000000.0)
 
-#define END_TIMEMEASUREMENT(name, res)                                                                                      \
-  gettimeofday(&__FILE__##__func__##name##actualtime, NULL);                                                                \
-  res = (double)__FILE__##__func__##name##actualtime.tv_sec +                                                               \
+#define END_TIMEMEASUREMENT(name, res)                        \
+  gettimeofday(&__FILE__##__func__##name##actualtime, NULL);  \
+  res = (double)__FILE__##__func__##name##actualtime.tv_sec + \
         ((double)__FILE__##__func__##name##actualtime.tv_usec / 1000000.0) - __FILE__##__func__##name##s_time
 
 typedef uint8_t number_type;
 typedef uint64_t header_type;
-typedef __m256i SIMD_TYPE;		// USE __m128i IF YOUR CPU DOES NOT SUPPORT AVX
+typedef __m256i SIMD_TYPE; // USE __m128i IF YOUR CPU DOES NOT SUPPORT AVX
 #define NUMBER_TYPE_VTK_NAME "UInt8"
 #define HEADER_TYPE_VTK_NAME "UInt64"
 
-void myexit(const char *s, ...) {
+void myexit(const char *s, ...)
+{
   va_list args;
   va_start(args, s);
   vprintf(s, args);
@@ -45,10 +46,12 @@ void myexit(const char *s, ...) {
   abort();
 }
 
-int testLittleEndian() {
+int testLittleEndian()
+{
   int32_t test = 1;
   char *testdata = (char *)&test;
-  if (testdata[0] == 1) {
+  if (testdata[0] == 1)
+  {
     return 1;
   }
   return 0;
@@ -70,7 +73,8 @@ const char *vtk_header_template =
     "   _";
 
 char vtk_header[10000];
-void create_vtk_header(char *header, int width, int height) {
+void create_vtk_header(char *header, int width, int height)
+{
   snprintf(header, 10000, vtk_header_template, testLittleEndian() ? "LittleEndian" : "BigEndian", width, height, width,
            height);
 }
@@ -78,16 +82,20 @@ void create_vtk_header(char *header, int width, int height) {
 char *vtk_tail = "\n  </AppendedData>\n"
                  "</VTKFile>\n";
 
-void write_vtk_data(FILE *f, char *data, int length) {
-  if (fwrite(data, 1, length, f) != length) {
+void write_vtk_data(FILE *f, char *data, int length)
+{
+  if (fwrite(data, 1, length, f) != length)
+  {
     myexit("Could not write vtk-Data");
   }
 }
 
-void write_field(number_type *currentfield, int width, int height, int timestep) {
+void write_field(number_type *currentfield, int width, int height, int timestep)
+{
 #ifdef CONSOLE_OUTPUT
   printf("\033[H");
-  for (int y = 0; y < height; y++) {
+  for (int y = 0; y < height; y++)
+  {
     for (int x = 0; x < width; x++)
       printf(ALIVE == currentfield[calcIndex(width, x, y)] ? "\033[07m  \033[m" : "  ");
     printf("\033[E");
@@ -96,7 +104,8 @@ void write_field(number_type *currentfield, int width, int height, int timestep)
   printf("\ntimestep=%d", timestep);
   usleep(80000);
 #else
-  if (timestep == 0) {
+  if (timestep == 0)
+  {
     mkdir("./gol/", 0777);
     create_vtk_header(vtk_header, width, height);
   }
@@ -118,18 +127,22 @@ void write_field(number_type *currentfield, int width, int height, int timestep)
 #endif
 }
 
-SIMD_TYPE load_simd_vector(number_type* field_pointer) {
-	return  _mm256_loadu_epi8(field_pointer);
+SIMD_TYPE load_simd_vector(number_type *field_pointer)
+{
+  return _mm256_loadu_si256((SIMD_TYPE *)field_pointer);
 }
 
-void store_simd_vector(SIMD_TYPE source, number_type* destination) {
-	_mm256_storeu_epi8(destination, source);
+void store_simd_vector(SIMD_TYPE source, number_type *destination)
+{
+  _mm256_storeu_si256((SIMD_TYPE *)destination, source);
 }
-SIMD_TYPE add_simd_vector(SIMD_TYPE a, SIMD_TYPE b) {
-	 return _mm256_adds_epu8(a, b);
+SIMD_TYPE add_simd_vector(SIMD_TYPE a, SIMD_TYPE b)
+{
+  return _mm256_adds_epu8(a, b);
 }
 
-SIMD_TYPE count_neibours(number_type** neighbor_pointer) {
+SIMD_TYPE count_neibours(number_type **neighbor_pointer)
+{
   SIMD_TYPE n0 = load_simd_vector(neighbor_pointer[0]);
   SIMD_TYPE n1 = load_simd_vector(neighbor_pointer[1]);
   SIMD_TYPE n2 = load_simd_vector(neighbor_pointer[2]);
@@ -139,58 +152,72 @@ SIMD_TYPE count_neibours(number_type** neighbor_pointer) {
   SIMD_TYPE n6 = load_simd_vector(neighbor_pointer[6]);
   SIMD_TYPE n7 = load_simd_vector(neighbor_pointer[7]);
   SIMD_TYPE n = _mm256_adds_epu8(n0, n1);
-  n =_mm256_adds_epu8(n, n2);
-  n =_mm256_adds_epu8(n, n3);
-  n =_mm256_adds_epu8(n, n4);
-  n =_mm256_adds_epu8(n, n5);
-  n =_mm256_adds_epu8(n, n6);
-  n =_mm256_adds_epu8(n, n7);
+  n = _mm256_adds_epu8(n, n2);
+  n = _mm256_adds_epu8(n, n3);
+  n = _mm256_adds_epu8(n, n4);
+  n = _mm256_adds_epu8(n, n5);
+  n = _mm256_adds_epu8(n, n6);
+  n = _mm256_adds_epu8(n, n7);
+  int *res = (int *)&n;
+  printf("nach %d %d %d %d %d %d %d %d\n", res[0], res[1], res[2], res[3], res[4], res[5], res[6], res[7]);
   return n;
 }
 
-void evolve(number_type *currentfield, number_type *newfield, int width, int height, number_type* source_pointer, number_type* destination_pointer, number_type** neighbor_pointer) {
-  for (size_t i = 0; i < height; i++) {
-    for (size_t j = 0; j < width; j += sizeof(SIMD_TYPE)) {
-  source_pointer = currentfield + i*width+j;
-  destination_pointer = currentfield + i*width+j;
-  neighbor_pointer[0] = source_pointer -1;
-  neighbor_pointer[1] = source_pointer +1;
-  neighbor_pointer[2] = source_pointer - width;
-  neighbor_pointer[3] = source_pointer - width-1;
-  neighbor_pointer[4] = source_pointer - width+1;
-  neighbor_pointer[5] = source_pointer + width;
-  neighbor_pointer[6] = source_pointer + width-1;
-  neighbor_pointer[7] = source_pointer + width+1;
+void evolve(number_type *currentfield, number_type *newfield, int width, int height, number_type *source_pointer, number_type *destination_pointer, number_type **neighbor_pointer)
+{
+  printf("size of vector: %d",(int) sizeof(SIMD_TYPE));
+  for (int i = 0; i < height; i++)
+  {
+    for (int j = 0; j < width; j += sizeof(SIMD_TYPE))
+    {
+      int pos = i * width + j;
+      //printf("pos: %d \n",pos);
+      printf("I: %d J: %d \n",i, j);
+      
+      source_pointer = currentfield + pos;
+      destination_pointer = currentfield +pos;
+      neighbor_pointer[0] = source_pointer - 1;
+      neighbor_pointer[1] = source_pointer + 1;
+      neighbor_pointer[2] = source_pointer - width;
+      neighbor_pointer[3] = source_pointer - width - 1;
+      neighbor_pointer[4] = source_pointer - width + 1;
+      neighbor_pointer[5] = source_pointer + width;
+      neighbor_pointer[6] = source_pointer + width - 1;
+      neighbor_pointer[7] = source_pointer + width + 1;
 
-  SIMD_TYPE current = load_simd_vector(source_pointer);
-  SIMD_TYPE n = count_neibours(neighbor_pointer);
-  SIMD_TYPE three = _mm256_set1_epi8(3);
-  SIMD_TYPE two = _mm256_set1_epi8(2);
-  SIMD_TYPE alive_con1 = _mm256_cmpeq_epi8(n,three); // if neibours == 3 then alive
-  SIMD_TYPE alive_con2 = _mm256_or_epi64(current, _mm256_cmpeq_epi8(n,two)); // if current == alive and neigbours == 2 then alive
-  SIMD_TYPE new = _mm256_or_epi64(alive_con1, alive_con2);
-  store_simd_vector(new, destination_pointer);
+      SIMD_TYPE current = load_simd_vector(source_pointer);
+      int *res = (int *)&current;
+      printf("vect %d %d %d %d %d %d %d %d\n", res[0], res[1], res[2], res[3], res[4], res[5], res[6], res[7]);
+      SIMD_TYPE n = count_neibours(neighbor_pointer);
+      SIMD_TYPE three = _mm256_set1_epi8(3);
+      SIMD_TYPE two = _mm256_set1_epi8(2);
+      SIMD_TYPE alive_con1 = _mm256_cmpeq_epi8(n, three);                         // if neibours == 3 then alive
+      SIMD_TYPE alive_con2 = _mm256_or_si256(current, _mm256_cmpeq_epi8(n, two)); // if current == alive and neigbours == 2 then alive
+      SIMD_TYPE new = _mm256_or_si256(alive_con1, alive_con2);
+      store_simd_vector(new, destination_pointer);
     }
   }
 
-
-  
   // TODO traverse through a vector of voxels (length CELLS) and use SIMD intrinsics to implement game of live logic
   // HINT: avoid boundaries
   // HINT: create a SIMD vector for currentfield, newfield and each neighbor (eight in total
 }
 
-void filling_random(number_type *currentfield, int width, int height) {
+void filling_random(number_type *currentfield, int width, int height)
+{
   int i;
-  for (int y = 1; y < height - 1; y++) {
-    for (int x = 1; x < width - 1; x++) {
+  for (int y = 1; y < height - 1; y++)
+  {
+    for (int x = 1; x < width - 1; x++)
+    {
       i = calcIndex(width, x, y);
       currentfield[i] = (rand() < RAND_MAX / 10) ? 1 : 0; ///< init domain randomly
     }
   }
 }
 
-void filling_runner(number_type *currentfield, int width, int height) {
+void filling_runner(number_type *currentfield, int width, int height)
+{
   int offset_x = width / 3;
   int offset_y = height / 2;
   currentfield[calcIndex(width, offset_x + 0, offset_y + 1)] = ALIVE;
@@ -200,7 +227,8 @@ void filling_runner(number_type *currentfield, int width, int height) {
   currentfield[calcIndex(width, offset_x + 2, offset_y + 2)] = ALIVE;
 }
 
-void apply_periodic_boundaries(number_type *field, int width, int height) {
+void apply_periodic_boundaries(number_type *field, int width, int height)
+{
   for (size_t i = 1; i < width - 1; i++)
   {
     field[calcIndex(width, i, 0)] = field[calcIndex(width, i, height - 2)];
@@ -213,15 +241,16 @@ void apply_periodic_boundaries(number_type *field, int width, int height) {
   }
 }
 
-void game(int width, int height, int num_timesteps) {
+void game(int width, int height, int num_timesteps)
+{
   number_type *currentfield = calloc(width * height, sizeof(number_type));
   number_type *newfield = calloc(width * height, sizeof(number_type));
-  
-  number_type* src; 
-  number_type* dst; 
 
-  number_type* neighbor_pointer[8];
-  
+  number_type *src;
+  number_type *dst;
+
+  number_type *neighbor_pointer[8];
+
   // TODO use your favorite filling
   // filling_random (currentfield, width, height);
   filling_runner(currentfield, width, height);
@@ -231,9 +260,10 @@ void game(int width, int height, int num_timesteps) {
   // TODO implement periodic boundary condition
   apply_periodic_boundaries(currentfield, width, height);
 
-  for (time = 1; time <= num_timesteps; time++) {
+  for (time = 1; time <= num_timesteps; time++)
+  {
     // TODO assign pointers to correct addresses
-    
+
     // TODO implement evolve function (see above)
     evolve(currentfield, newfield, width, height, src, dst, neighbor_pointer);
     write_field(newfield, width, height, time);
@@ -246,16 +276,20 @@ void game(int width, int height, int num_timesteps) {
   free(newfield);
 }
 
-int main(int c, char **v) {
+int main(int c, char **v)
+{
   int width = 0, height = 0, num_timesteps;
-  if (c == 4) {
+  if (c == 4)
+  {
     width = atoi(v[1]) + 2;     ///< read width + 2 boundary cells (low x, high x)
     height = atoi(v[2]) + 2;    ///< read height + 2 boundary cells (low y, high y)
     num_timesteps = atoi(v[3]); ///< read timesteps
-    if (width <= 0) {
+    if (width <= 0)
+    {
       width = 32; ///< default width
     }
-    if (height <= 0) {
+    if (height <= 0)
+    {
       height = 32; ///< default height
     }
 
@@ -266,7 +300,9 @@ int main(int c, char **v) {
 
     END_TIMEMEASUREMENT(measure_game_time, elapsed_time);
     printf("time elapsed: %lf sec\n", elapsed_time);
-  } else {
+  }
+  else
+  {
     myexit("Too less arguments, example: ./gameoflife <x size> <y size> <number of timesteps>");
   }
 }
