@@ -17,7 +17,7 @@
 #define calcIndex(width, x, y) ((y) * (width) + (x))
 #define ALIVE 1
 #define DEAD 0
-#define CELLS 4 // NUMBER OF CELLS TO VECTORIZE
+#define CELLS 8 // NUMBER OF CELLS TO VECTORIZE
 
 #define START_TIMEMEASUREMENT(name)                                                               \
   struct timeval __FILE__##__func__##name##actualtime;                                            \
@@ -152,30 +152,38 @@ SIMD_TYPE count_neibours(number_type **neighbor_pointer)
   SIMD_TYPE n6 = load_simd_vector(neighbor_pointer[6]);
   SIMD_TYPE n7 = load_simd_vector(neighbor_pointer[7]);
   SIMD_TYPE n = _mm256_adds_epu8(n0, n1);
-  n = _mm256_adds_epu8(n, n2);
-  n = _mm256_adds_epu8(n, n3);
-  n = _mm256_adds_epu8(n, n4);
-  n = _mm256_adds_epu8(n, n5);
-  n = _mm256_adds_epu8(n, n6);
-  n = _mm256_adds_epu8(n, n7);
-  int *res = (int *)&n;
-  printf("nach %d %d %d %d %d %d %d %d\n", res[0], res[1], res[2], res[3], res[4], res[5], res[6], res[7]);
+  n0 = _mm256_adds_epu8(n, n2);
+  n1 = _mm256_adds_epu8(n0, n3);
+  n2 = _mm256_adds_epu8(n1, n4);
+  n3 = _mm256_adds_epu8(n2, n5);
+  n4 = _mm256_adds_epu8(n3, n6);
+  n5 = _mm256_adds_epu8(n4, n7);
+  int *res = (int *)&n5;
+  //printf("N %d %d %d %d %d %d %d %d", res[0], res[1], res[2], res[3], res[4], res[5], res[6], res[7]);
   return n;
 }
 
 void evolve(number_type *currentfield, number_type *newfield, int width, int height, number_type *source_pointer, number_type *destination_pointer, number_type **neighbor_pointer)
 {
-  printf("size of vector: %d",(int) sizeof(SIMD_TYPE));
-  for (int i = 0; i < height; i++)
+  printf("size of vector: %d", (int)CELLS);
+  for (int i = 1; i < height-2; i++)
   {
-    for (int j = 0; j < width; j += sizeof(SIMD_TYPE))
+
+    printf("\n");
+    for (int j = 1; j < width; j++)
+    {
+      // printf("%d ", currentfield[i * width + j]);
+    }
+
+    // printf("\n V");
+    for (int j = 1; j < width-2; j += CELLS)
     {
       int pos = i * width + j;
-      //printf("pos: %d \n",pos);
-      printf("I: %d J: %d \n",i, j);
-      
+      // printf("pos: %d \n",pos);
+      // printf("I: %d J: %d \n",i, j);
+
       source_pointer = currentfield + pos;
-      destination_pointer = currentfield +pos;
+      destination_pointer = newfield + pos;
       neighbor_pointer[0] = source_pointer - 1;
       neighbor_pointer[1] = source_pointer + 1;
       neighbor_pointer[2] = source_pointer - width;
@@ -184,15 +192,14 @@ void evolve(number_type *currentfield, number_type *newfield, int width, int hei
       neighbor_pointer[5] = source_pointer + width;
       neighbor_pointer[6] = source_pointer + width - 1;
       neighbor_pointer[7] = source_pointer + width + 1;
-
       SIMD_TYPE current = load_simd_vector(source_pointer);
       int *res = (int *)&current;
-      printf("vect %d %d %d %d %d %d %d %d\n", res[0], res[1], res[2], res[3], res[4], res[5], res[6], res[7]);
+      printf("A %d %d %d %d %d %d %d %d ", res[0], res[1], res[2], res[3], res[4], res[5], res[6], res[7]);
       SIMD_TYPE n = count_neibours(neighbor_pointer);
       SIMD_TYPE three = _mm256_set1_epi8(3);
       SIMD_TYPE two = _mm256_set1_epi8(2);
       SIMD_TYPE alive_con1 = _mm256_cmpeq_epi8(n, three);                         // if neibours == 3 then alive
-      SIMD_TYPE alive_con2 = _mm256_or_si256(current, _mm256_cmpeq_epi8(n, two)); // if current == alive and neigbours == 2 then alive
+      SIMD_TYPE alive_con2 = _mm256_and_si256(current, _mm256_cmpeq_epi8(n, two)); // if current == alive and neigbours == 2 then alive
       SIMD_TYPE new = _mm256_or_si256(alive_con1, alive_con2);
       store_simd_vector(new, destination_pointer);
     }
@@ -270,6 +277,9 @@ void game(int width, int height, int num_timesteps)
     // TODO implement periodic boundary condition
     apply_periodic_boundaries(newfield, width, height);
     // TODO implement SWAP of the fields
+    number_type *temp = newfield;
+    newfield = currentfield;
+    currentfield = temp;
   }
 
   free(currentfield);
