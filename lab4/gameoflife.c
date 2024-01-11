@@ -129,12 +129,23 @@ void write_field(number_type *currentfield, int width, int height, int timestep)
 
 SIMD_TYPE load_simd_vector(number_type *field_pointer)
 {
-  return _mm256_loadu_si256((SIMD_TYPE *)field_pointer);
+  return _mm256_set_epi32(*(field_pointer+7), *(field_pointer+6), *(field_pointer+5), *(field_pointer+4), *(field_pointer+3), *(field_pointer+2), *(field_pointer+1), *(field_pointer+0));
 }
 
 void store_simd_vector(SIMD_TYPE source, number_type *destination)
 {
-  _mm256_storeu_si256((SIMD_TYPE *)destination, source);
+  int *out = (int *)&source;
+  //printf("neu %d %d %d %d %d %d %d %d", out[0], out[1], out[2], out[3], out[4], out[5], out[6], out[7]);
+  //printf("dest %d %d %d %d %d\n", destination[0],destination[1],destination[2],destination[3],destination[4]);     
+  destination[0] = out[0];
+  destination[1] = out[1];
+  destination[2] = out[2];
+  destination[3] = out[3];
+  destination[4] = out[4];
+  destination[5] = out[5];
+  destination[6] = out[6];
+  destination[7] = out[7];
+  //printf("neu %d %d %d %d %d\n", destination[0],destination[1],destination[2],destination[3],destination[4]);     
 }
 SIMD_TYPE add_simd_vector(SIMD_TYPE a, SIMD_TYPE b)
 {
@@ -143,6 +154,7 @@ SIMD_TYPE add_simd_vector(SIMD_TYPE a, SIMD_TYPE b)
 
 SIMD_TYPE count_neibours(number_type **neighbor_pointer)
 {
+  //printf("neigbour pointer 0 %d \n",neighbor_pointer[0]);
   SIMD_TYPE n0 = load_simd_vector(neighbor_pointer[0]);
   SIMD_TYPE n1 = load_simd_vector(neighbor_pointer[1]);
   SIMD_TYPE n2 = load_simd_vector(neighbor_pointer[2]);
@@ -158,29 +170,24 @@ SIMD_TYPE count_neibours(number_type **neighbor_pointer)
   n3 = _mm256_adds_epu8(n2, n5);
   n4 = _mm256_adds_epu8(n3, n6);
   n5 = _mm256_adds_epu8(n4, n7);
-  int *res = (int *)&n5;
+  //int *res = (int *)&n5;
   //printf("N %d %d %d %d %d %d %d %d", res[0], res[1], res[2], res[3], res[4], res[5], res[6], res[7]);
-  return n;
+  return n5;
 }
 
 void evolve(number_type *currentfield, number_type *newfield, int width, int height, number_type *source_pointer, number_type *destination_pointer, number_type **neighbor_pointer)
 {
-  printf("size of vector: %d", (int)CELLS);
-  for (int i = 1; i < height-2; i++)
+  //printf("size of vector: %d", (int)CELLS);
+  for (int i = 1; i <= height; i++)
   {
 
-    printf("\n");
-    for (int j = 1; j < width; j++)
-    {
-      // printf("%d ", currentfield[i * width + j]);
-    }
 
     // printf("\n V");
-    for (int j = 1; j < width-2; j += CELLS)
+    for (int j = 1; j < width; j += CELLS)
     {
       int pos = i * width + j;
-      // printf("pos: %d \n",pos);
-      // printf("I: %d J: %d \n",i, j);
+      //printf("pos: %d \n",pos);
+      //printf("I: %d J: %d \n",i, j);
 
       source_pointer = currentfield + pos;
       destination_pointer = newfield + pos;
@@ -193,15 +200,21 @@ void evolve(number_type *currentfield, number_type *newfield, int width, int hei
       neighbor_pointer[6] = source_pointer + width - 1;
       neighbor_pointer[7] = source_pointer + width + 1;
       SIMD_TYPE current = load_simd_vector(source_pointer);
-      int *res = (int *)&current;
-      printf("A %d %d %d %d %d %d %d %d ", res[0], res[1], res[2], res[3], res[4], res[5], res[6], res[7]);
-      SIMD_TYPE n = count_neibours(neighbor_pointer);
-      SIMD_TYPE three = _mm256_set1_epi8(3);
-      SIMD_TYPE two = _mm256_set1_epi8(2);
-      SIMD_TYPE alive_con1 = _mm256_cmpeq_epi8(n, three);                         // if neibours == 3 then alive
-      SIMD_TYPE alive_con2 = _mm256_and_si256(current, _mm256_cmpeq_epi8(n, two)); // if current == alive and neigbours == 2 then alive
+      //int* res = (int *)&current;
+      //printf("C %d %d %d %d %d %d %d %d ", res[0], res[1], res[2], res[3], res[4], res[5], res[6], res[7]);
+      SIMD_TYPE nab = count_neibours(neighbor_pointer);
+      SIMD_TYPE three = _mm256_set1_epi32(3);
+      SIMD_TYPE two = _mm256_set1_epi32(2);
+      SIMD_TYPE alive_con1 = _mm256_abs_epi32(_mm256_cmpeq_epi32(nab, three));// if neibours == 3 then alive
+      
+      SIMD_TYPE alive_con2 = _mm256_and_si256(current, _mm256_abs_epi32(_mm256_cmpeq_epi32(nab, two))); // if current == alive and neigbours == 2 then alive
+      //int* res3 = (int *)&alive_con2;
+      //printf("C %d %d %d %d %d %d %d %d ", res3[0], res3[1], res3[2], res3[3], res3[4], res3[5], res3[6], res3[7]);
       SIMD_TYPE new = _mm256_or_si256(alive_con1, alive_con2);
+      int *res2 = (int *)&new;
+      //printf("NEU %d %d %d %d %d %d %d %d ", res2[0], res2[1], res2[2], res2[3], res2[4], res2[5], res2[6], res2[7]);
       store_simd_vector(new, destination_pointer);
+      //printf("\n");
     }
   }
 
