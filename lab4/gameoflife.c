@@ -178,10 +178,8 @@ SIMD_TYPE count_neibours(number_type **neighbor_pointer)
 void evolve(number_type *currentfield, number_type *newfield, int width, int height, number_type *source_pointer, number_type *destination_pointer, number_type **neighbor_pointer)
 {
   //printf("size of vector: %d", (int)CELLS);
-  for (int i = 1; i <= height; i++)
+  for (int i = 1; i < height; i++)
   {
-
-
     // printf("\n V");
     for (int j = 1; j < width; j += CELLS)
     {
