@@ -1,3 +1,4 @@
+#include <omp.h>
 #include <stdarg.h>
 #include <stdint.h>
 #include <stdio.h>
@@ -7,10 +8,6 @@
 #include <sys/time.h>
 #include <sys/types.h>
 #include <unistd.h>
-#include <immintrin.h>
-#include <emmintrin.h>
-#include <avxintrin.h>
-#include <smmintrin.h>
 // OPTIONAL: comment this out for No output
 #define NO_OUTOUT
 // OPTIONAL: comment this out for console output
@@ -19,7 +16,9 @@
 #define calcIndex(width, x, y) ((y) * (width) + (x))
 #define ALIVE 1
 #define DEAD 0
-#define CELLS 8 // NUMBER OF CELLS TO VECTORIZE
+
+#define X 0
+#define Y 1
 
 #define START_TIMEMEASUREMENT(name)                                                               \
   struct timeval __FILE__##__func__##name##actualtime;                                            \
@@ -34,7 +33,6 @@
 
 typedef uint8_t number_type;
 typedef uint64_t header_type;
-typedef __m256i SIMD_TYPE; // USE __m128i IF YOUR CPU DOES NOT SUPPORT AVX
 #define NUMBER_TYPE_VTK_NAME "UInt8"
 #define HEADER_TYPE_VTK_NAME "UInt64"
 
@@ -95,7 +93,7 @@ void write_vtk_data(FILE *f, char *data, int length)
 void write_field(number_type *currentfield, int width, int height, int timestep)
 {
 #ifdef NO_OUTOUT
-  // printf("finished timestep %d\n", timestep);
+  //printf("finished timestep %d\n", timestep);
   return;
 #endif
 #ifdef CONSOLE_OUTPUT
@@ -129,104 +127,63 @@ void write_field(number_type *currentfield, int width, int height, int timestep)
   // write the tail of the vti file
   write_vtk_data(fp, vtk_tail, strlen(vtk_tail));
   fclose(fp);
-  printf("finished writing timestep %d\n", timestep);
+  //printf("finished writing timestep %d\n", timestep);
 #endif
 }
 
-SIMD_TYPE load_simd_vector(number_type *field_pointer)
+int count_neighbours(number_type *currentfield, int pos_x, int pos_y, int width)
 {
-  return _mm256_set_epi32(*(field_pointer + 7), *(field_pointer + 6), *(field_pointer + 5), *(field_pointer + 4), *(field_pointer + 3), *(field_pointer + 2), *(field_pointer + 1), *(field_pointer + 0));
-}
-
-void store_simd_vector(SIMD_TYPE source, number_type *destination)
-{
-  int *out = (int *)&source;
-  // printf("neu %d %d %d %d %d %d %d %d", out[0], out[1], out[2], out[3], out[4], out[5], out[6], out[7]);
-  // printf("dest %d %d %d %d %d\n", destination[0],destination[1],destination[2],destination[3],destination[4]);
-  destination[0] = out[0];
-  destination[1] = out[1];
-  destination[2] = out[2];
-  destination[3] = out[3];
-  destination[4] = out[4];
-  destination[5] = out[5];
-  destination[6] = out[6];
-  destination[7] = out[7];
-  // printf("neu %d %d %d %d %d\n", destination[0],destination[1],destination[2],destination[3],destination[4]);
-}
-SIMD_TYPE add_simd_vector(SIMD_TYPE a, SIMD_TYPE b)
-{
-  return _mm256_adds_epu8(a, b);
-}
-
-SIMD_TYPE count_neibours(number_type **neighbor_pointer)
-{
-  // printf("neigbour pointer 0 %d \n",neighbor_pointer[0]);
-  SIMD_TYPE n0 = load_simd_vector(neighbor_pointer[0]);
-  SIMD_TYPE n1 = load_simd_vector(neighbor_pointer[1]);
-  SIMD_TYPE n2 = load_simd_vector(neighbor_pointer[2]);
-  SIMD_TYPE n3 = load_simd_vector(neighbor_pointer[3]);
-  SIMD_TYPE n4 = load_simd_vector(neighbor_pointer[4]);
-  SIMD_TYPE n5 = load_simd_vector(neighbor_pointer[5]);
-  SIMD_TYPE n6 = load_simd_vector(neighbor_pointer[6]);
-  SIMD_TYPE n7 = load_simd_vector(neighbor_pointer[7]);
-  SIMD_TYPE n = _mm256_adds_epu8(n0, n1);
-  n0 = _mm256_adds_epu8(n, n2);
-  n1 = _mm256_adds_epu8(n0, n3);
-  n2 = _mm256_adds_epu8(n1, n4);
-  n3 = _mm256_adds_epu8(n2, n5);
-  n4 = _mm256_adds_epu8(n3, n6);
-  n5 = _mm256_adds_epu8(n4, n7);
-  // int *res = (int *)&n5;
-  // printf("N %d %d %d %d %d %d %d %d", res[0], res[1], res[2], res[3], res[4], res[5], res[6], res[7]);
-  return n5;
-}
-
-void evolve(number_type *currentfield, number_type *newfield, int width, int height, number_type **neighbor_pointer)
-{
-  number_type *source_pointer;
-  number_type *destination_pointer;
-  // printf("size of vector: %d", (int)CELLS);
-  for (int i = 1; i < height; i++)
+  int count = 0;
+  for (int i = pos_x - 1; i <= pos_x + 1; i++)
   {
-    // printf("\n V");
-    for (int j = 1; j < width; j += CELLS)
+    for (int j = pos_y - 1; j <= pos_y + 1; j++)
     {
-      int pos = i * width + j;
-      // printf("pos: %d \n",pos);
-      // printf("I: %d J: %d \n",i, j);
-
-      source_pointer = currentfield + pos;
-      destination_pointer = newfield + pos;
-      neighbor_pointer[0] = source_pointer - 1;
-      neighbor_pointer[1] = source_pointer + 1;
-      neighbor_pointer[2] = source_pointer - width;
-      neighbor_pointer[3] = source_pointer - width - 1;
-      neighbor_pointer[4] = source_pointer - width + 1;
-      neighbor_pointer[5] = source_pointer + width;
-      neighbor_pointer[6] = source_pointer + width - 1;
-      neighbor_pointer[7] = source_pointer + width + 1;
-      SIMD_TYPE current = load_simd_vector(source_pointer);
-      // int* res = (int *)&current;
-      // printf("C %d %d %d %d %d %d %d %d ", res[0], res[1], res[2], res[3], res[4], res[5], res[6], res[7]);
-      SIMD_TYPE nab = count_neibours(neighbor_pointer);
-      SIMD_TYPE three = _mm256_set1_epi32(3);
-      SIMD_TYPE two = _mm256_set1_epi32(2);
-      SIMD_TYPE alive_con1 = _mm256_abs_epi32(_mm256_cmpeq_epi32(nab, three)); // if neibours == 3 then alive
-
-      SIMD_TYPE alive_con2 = _mm256_and_si256(current, _mm256_abs_epi32(_mm256_cmpeq_epi32(nab, two))); // if current == alive and neigbours == 2 then alive
-      // int* res3 = (int *)&alive_con2;
-      // printf("C %d %d %d %d %d %d %d %d ", res3[0], res3[1], res3[2], res3[3], res3[4], res3[5], res3[6], res3[7]);
-      SIMD_TYPE new = _mm256_or_si256(alive_con1, alive_con2);
-      //int *res2 = (int *)&new;
-      // printf("NEU %d %d %d %d %d %d %d %d ", res2[0], res2[1], res2[2], res2[3], res2[4], res2[5], res2[6], res2[7]);
-      store_simd_vector(new, destination_pointer);
-      // printf("\n");
+      int t = currentfield[calcIndex(width, i, j)];
+      if (t == ALIVE)
+      {
+        count++;
+      }
     }
   }
+  if (currentfield[calcIndex(width, pos_x, pos_y)] == ALIVE)
+    count--;
+  return count;
+}
 
-  // TODO traverse through a vector of voxels (length CELLS) and use SIMD intrinsics to implement game of live logic
-  // HINT: avoid boundaries
-  // HINT: create a SIMD vector for currentfield, newfield and each neighbor (eight in total
+void evolve(number_type *currentfield, number_type *newfield, int starts[2], int ends[2], int width)
+{
+  // #pragma omp parallel for // collapse(2)
+  for (int i = starts[0]; i < ends[0]; i++)
+  {
+    for (int j = starts[1]; j < ends[1]; j++)
+    {
+      number_type *current_cell = currentfield + calcIndex(width, i, j);
+      number_type *new_cell = newfield + calcIndex(width, i, j);
+      int neighbours = count_neighbours(currentfield, i, j, width);
+      if (*current_cell == ALIVE)
+      {
+        if (neighbours < 2 || neighbours > 3)
+          *new_cell = DEAD;
+        else
+          *new_cell = ALIVE;
+      }
+      else if (*current_cell == DEAD) // DEAD
+      {
+        if (neighbours == 3)
+          *new_cell = ALIVE;
+        else
+          *new_cell = DEAD;
+      }
+      else
+      {
+        printf("Warn unexpected cel value \n");
+      }
+    }
+  }
+  // void evolve(number_type* currentfield, number_type* newfield, int width, int height) {
+  // TODO traverse through each voxel and implement game of live logic and
+  // parallelize using OpenMP.
+  // HINT: use 'starts' and 'ends'
 }
 
 void filling_random(number_type *currentfield, int width, int height)
@@ -267,49 +224,82 @@ void apply_periodic_boundaries(number_type *field, int width, int height)
   }
 }
 
-void game(int width, int height, int num_timesteps)
+void game(int width, int height, int num_timesteps, int *decomposition)
 {
+  (void)decomposition; // required for task b suppress warning in task a
   number_type *currentfield = calloc(width * height, sizeof(number_type));
   number_type *newfield = calloc(width * height, sizeof(number_type));
 
-  number_type *neighbor_pointer[8];
-
-  // TODO use your favorite filling
-  // filling_random (currentfield, width, height);
+  // TODO 1: use your favorite filling
+  filling_random (currentfield, width, height);
   filling_runner(currentfield, width, height);
-
+  int delta_height = (height - 2) / decomposition[Y];
+  int delta_width = (width - 2) / decomposition[X];
+  int starts[2];
+  int ends[2];
   int time = 0;
+  int size = decomposition[X] *decomposition[Y];
+  int startsX[size];
+  int startsY[size];
+  int count = 0;
   write_field(currentfield, width, height, time);
-  // TODO implement periodic boundary condition
+  // TODO 3: implement periodic boundary condition
   apply_periodic_boundaries(currentfield, width, height);
+
+for (int i = 1; i < height-delta_height; i= i+delta_height){
+  for (int j = 1; j < width-delta_width; j= j+delta_width)
+  {
+    //printf("count: %d startY %d startX %d \n",count, i,j);
+    startsY[count] = i;
+    startsX[count] = j;
+    count++;
+  }
+}
 
   for (time = 1; time <= num_timesteps; time++)
   {
-    // TODO assign pointers to correct addresses
-
-    // TODO implement evolve function (see above)
-    evolve(currentfield, newfield, width, height, neighbor_pointer);
-    write_field(newfield, width, height, time);
-    // TODO implement periodic boundary condition
-    apply_periodic_boundaries(newfield, width, height);
-    // TODO implement SWAP of the fields
-    number_type *temp = newfield;
-    newfield = currentfield;
-    currentfield = temp;
-  }
-
-  free(currentfield);
-  free(newfield);
+    #pragma omp parallel num_threads(size) private(starts, ends)
+    {
+      starts[X] = startsX[omp_get_thread_num()];
+      starts[Y] = startsY[omp_get_thread_num()];
+      //printf("start thread: %d  X: %d Y: %d \n",omp_get_thread_num(), starts[X], starts[Y]);
+      ends[X] = starts[X]+delta_width;
+      ends[Y] = starts[Y]+delta_height;
+      //printf("end thread: %d  X: %d Y: %d \n",omp_get_thread_num(), ends[X], ends[Y]);
+      evolve(currentfield, newfield, starts, ends, width);
+    }
+  // TODO 3: implement periodic boundary condition
+  apply_periodic_boundaries(newfield, width, height);
+  write_field(newfield, width, height, time);
+  // TODO 4: implement SWAP of the fields
+  number_type *temp = currentfield;
+  currentfield = newfield;
+  newfield = temp;
+}
+free(currentfield);
+free(newfield);
 }
 
 int main(int c, char **v)
 {
-  int width = 0, height = 0, num_timesteps;
-  if (c == 4)
+/*
+#pragma omp parallel
+  {
+    if (omp_get_thread_num() == 0)
+    {
+      printf("Running with %d threads\n", omp_get_num_threads());
+    }
+  }
+  */
+
+  int width, height, num_timesteps;
+  int decomposition[2] = {1, 1};
+  if (c == 4 || c == 6)
   {
     width = atoi(v[1]) + 2;     ///< read width + 2 boundary cells (low x, high x)
     height = atoi(v[2]) + 2;    ///< read height + 2 boundary cells (low y, high y)
     num_timesteps = atoi(v[3]); ///< read timesteps
+
     if (width <= 0)
     {
       width = 32; ///< default width
@@ -318,17 +308,24 @@ int main(int c, char **v)
     {
       height = 32; ///< default height
     }
-
-    double elapsed_time;
-    START_TIMEMEASUREMENT(measure_game_time);
-
-    game(width, height, num_timesteps);
-
-    END_TIMEMEASUREMENT(measure_game_time, elapsed_time);
-    printf("time elapsed: %lf sec\n", elapsed_time);
+    if (c == 6)
+    {
+      decomposition[X] = atoi(v[4]); ///< read number of threads in x
+      decomposition[Y] = atoi(v[5]); ///< read number of threads in y
+      if ((width-2) % decomposition[X] != 0 || (height-2) % decomposition[Y] != 0){
+        myexit("The field must be divideble by the decomposition");
+      }
+    }
   }
   else
   {
-    myexit("Too less arguments, example: ./gameoflife <x size> <y size> <number of timesteps>");
+    myexit("Too less arguments");
   }
+  double elapsed_time;
+  START_TIMEMEASUREMENT(measure_game_time);
+
+  game(width, height, num_timesteps, decomposition);
+
+  END_TIMEMEASUREMENT(measure_game_time, elapsed_time);
+  printf("time elapsed: %lf sec\n", elapsed_time);
 }

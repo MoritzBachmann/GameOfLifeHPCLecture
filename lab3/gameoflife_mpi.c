@@ -306,29 +306,33 @@ if (rank == 0)
   MPI_Cart_shift(cart_comm, 1, 1, *right, *corner_t_r );
   */
   int row[2], col[2];
-  row[0] = width;
-  row[1] = 0;
-  col[0] = 0;
-  col[1] = height;
-  int starts[2] = {0, 0};
-  
-  MPI_Type_create_subarray(2, lsizes, row, starts,
+  row[0] = memsizes[0]-1;
+  row[1] = 1;
+  col[0] = 1;
+  col[1] = memsizes[1];
+  int starts[2] = {1, 0};
+  printf("0. iD: %d war hier\n",rank);
+  MPI_Type_create_subarray(2, memsizes, row, starts,
                            MPI_ORDER_C, MPI_INT, &left_border);
   MPI_Type_commit(&left_border);
+  int starts[2] = {0, 1};
+  printf("iD: %d war hier\n",rank);
 
-  MPI_Type_create_subarray(2, lsizes, col, starts,
+  MPI_Type_create_subarray(2, memsizes, col, starts,
                            MPI_ORDER_C, MPI_INT, &bottom_border);
   MPI_Type_commit(&bottom_border);
-  starts[0] = width - 1;
+  printf(" 2. iD: %d war hier\n",rank);
+  starts[0] = memsizes[0]-1;
   MPI_Type_create_subarray(2, lsizes, row, starts,
                            MPI_ORDER_C, MPI_INT, &right_border);
   MPI_Type_commit(&right_border);
+  printf("3. iD: %d war hier\n",rank);
   starts[0] = 0;
-  starts[1] = height - 1;
+  starts[1] = height;
   MPI_Type_create_subarray(2, lsizes, col, starts,
                            MPI_ORDER_C, MPI_INT, &top_border);
   MPI_Type_commit(&top_border);
-
+  printf("4. iD: %d war hier\n",rank);
   MPI_Sendrecv(lsizes, 1, left_border, neighbours_ranks[LEFT], 1, lsizes, 1, right_border, neighbours_ranks[RIGHT], 1, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
   MPI_Sendrecv(lsizes, 1, right_border, neighbours_ranks[RIGHT], 1, lsizes, 1, left_border, neighbours_ranks[LEFT], 1, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
   MPI_Sendrecv(lsizes, 1, bottom_border, neighbours_ranks[DOWN], 1, lsizes, 1, top_border, neighbours_ranks[UP], 1, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
