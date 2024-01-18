@@ -181,8 +181,10 @@ SIMD_TYPE count_neibours(number_type **neighbor_pointer)
   return n5;
 }
 
-void evolve(number_type *currentfield, number_type *newfield, int width, int height, number_type *source_pointer, number_type *destination_pointer, number_type **neighbor_pointer)
+void evolve(number_type *currentfield, number_type *newfield, int width, int height, number_type **neighbor_pointer)
 {
+  number_type *source_pointer;
+  number_type *destination_pointer;
   // printf("size of vector: %d", (int)CELLS);
   for (int i = 1; i < height; i++)
   {
@@ -215,7 +217,7 @@ void evolve(number_type *currentfield, number_type *newfield, int width, int hei
       // int* res3 = (int *)&alive_con2;
       // printf("C %d %d %d %d %d %d %d %d ", res3[0], res3[1], res3[2], res3[3], res3[4], res3[5], res3[6], res3[7]);
       SIMD_TYPE new = _mm256_or_si256(alive_con1, alive_con2);
-      int *res2 = (int *)&new;
+      //int *res2 = (int *)&new;
       // printf("NEU %d %d %d %d %d %d %d %d ", res2[0], res2[1], res2[2], res2[3], res2[4], res2[5], res2[6], res2[7]);
       store_simd_vector(new, destination_pointer);
       // printf("\n");
@@ -270,9 +272,6 @@ void game(int width, int height, int num_timesteps)
   number_type *currentfield = calloc(width * height, sizeof(number_type));
   number_type *newfield = calloc(width * height, sizeof(number_type));
 
-  number_type *src;
-  number_type *dst;
-
   number_type *neighbor_pointer[8];
 
   // TODO use your favorite filling
@@ -289,7 +288,7 @@ void game(int width, int height, int num_timesteps)
     // TODO assign pointers to correct addresses
 
     // TODO implement evolve function (see above)
-    evolve(currentfield, newfield, width, height, src, dst, neighbor_pointer);
+    evolve(currentfield, newfield, width, height, neighbor_pointer);
     write_field(newfield, width, height, time);
     // TODO implement periodic boundary condition
     apply_periodic_boundaries(newfield, width, height);
