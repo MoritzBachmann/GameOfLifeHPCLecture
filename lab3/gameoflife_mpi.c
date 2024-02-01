@@ -140,6 +140,33 @@ int count_neighbours(number_type *currentfield, int pos_x, int pos_y, int width)
   return count;
 }
 
+void send_mpi(number_type *source, number_type *destination, int local_starts, int rows, int colums, int num_procs, int rank)
+{
+  for (int i = 1; i < colums; i++)
+  {
+    // printf("\n");
+    for (int j = 1; j < rows; j += 1)
+    {
+      int local_pos = i * colums + j;
+      int global_pos = local_starts + local_pos;
+      if (rank == 0)
+      {
+        for (int sender = 1; sender < num_procs; sender++)
+        {
+          //printf("iD: %d - reciving %d from rank %d \n", rank, global_pos, sender);
+          MPI_Status rec;
+          MPI_Recv((destination + global_pos), 1, MPI_INT, sender, 99, MPI_COMM_WORLD, &rec);
+        }
+      }
+      else
+      {
+        //printf("iD: %d - sendig location %d from rank \n", rank, local_pos);
+        MPI_Send((source + local_pos), 1, MPI_INT, 0, 99, MPI_COMM_WORLD);
+      }
+    }
+  }
+}
+
 void evolve(number_type *currentfield, number_type *newfield, int width, int height, int *start_indices)
 {
   // #pragma omp parallel for // collapse(2)
@@ -166,7 +193,7 @@ void evolve(number_type *currentfield, number_type *newfield, int width, int hei
       }
       else
       {
-        printf("Warn unexpected cel value: %d \n", *current_cell);
+        printf("Warn unexpected cel value: %d at %d %d\n", *current_cell, i,j);
       }
     }
   }
@@ -255,10 +282,10 @@ void game(int c, int process_numX, int process_numY, int width, int height, int 
    */
   if (rank == 0)
   {
-    MPI_Type_create_subarray(2, gsizes, lsizes, start_indices,
-                             MPI_ORDER_C, MPI_INT, &filetype);
-    MPI_Type_commit(&filetype);
   }
+  MPI_Type_create_subarray(2, gsizes, lsizes, start_indices,
+                           MPI_ORDER_C, MPI_INT, &filetype);
+  MPI_Type_commit(&filetype);
 
   /* TODO 5e: Create a derived datatype that describes the layout of the inner local field
    *      in the memory buffer that includes the ghost layer (local field).
@@ -281,7 +308,7 @@ void game(int c, int process_numX, int process_numY, int width, int height, int 
 
   // TODO  use your favorite filling
   // filling_random (currentfield, width, height);
-  filling_runner(local_field, width, height);
+  filling_runner(local_field, lsizes[0], lsizes[1]);
 
   int time = 0;
   // write_field(local_field, width, height, time);
@@ -314,63 +341,67 @@ void game(int c, int process_numX, int process_numY, int width, int height, int 
   col[0] = 1;
   col[1] = memsizes[1];
   int starts[2] = {0, 1};
-  printf("0. iD: %d war hier\n", rank);
-  printf("Starts:  %d  %d row: %d %d \n", starts[0], starts[1], row[0], row[1]);
+  // printf("0. iD: %d war hier\n", rank);
+  // printf("Starts:  %d  %d row: %d %d \n", starts[0], starts[1], row[0], row[1]);
   MPI_Type_create_subarray(2, memsizes, row, starts,
                            MPI_ORDER_C, MPI_INT, &bottom_border);
   MPI_Type_commit(&bottom_border);
 
-  printf(" 1. iD: %d war hier\n", rank);
+  // printf(" 1. iD: %d war hier\n", rank);
   starts[0] = 1;
   starts[1] = 0;
-  printf("Starts:  %d  %d col: %d %d \n", starts[0], starts[1], col[0], col[1]);
+  // printf("Starts:  %d  %d col: %d %d \n", starts[0], starts[1], col[0], col[1]);
   MPI_Type_create_subarray(2, memsizes, col, starts,
                            MPI_ORDER_C, MPI_INT, &left_border);
   MPI_Type_commit(&left_border);
 
-  printf(" 2. iD: %d war hier\n", rank);
+  // printf(" 2. iD: %d war hier\n", rank);
   starts[1] = memsizes[1] - 1;
   starts[0] = 0;
-  printf("Starts:  %d  %d row: %d %d \n", starts[0], starts[1], row[0], row[1]);
+  // printf("Starts:  %d  %d row: %d %d \n", starts[0], starts[1], row[0], row[1]);
   MPI_Type_create_subarray(2, memsizes, row, starts,
                            MPI_ORDER_C, MPI_INT, &top_border);
   MPI_Type_commit(&top_border);
 
-  printf("3. iD: %d war hier\n", rank);
+  // printf("3. iD: %d war hier\n", rank);
   starts[0] = memsizes[1] - 1;
   starts[1] = 0;
-  printf("Starts:  %d  %d col: %d %d \n", starts[0], starts[1], col[0], col[1]);
+  // printf("Starts:  %d  %d col: %d %d \n", starts[0], starts[1], col[0], col[1]);
   MPI_Type_create_subarray(2, memsizes, col, starts,
                            MPI_ORDER_C, MPI_INT, &right_border);
   MPI_Type_commit(&right_border);
-  printf("4. iD: %d war hier\n", rank);
-  MPI_Sendrecv(memsizes, 1, left_border, neighbours_ranks[LEFT], 1, memsizes, 1, right_border, neighbours_ranks[RIGHT], 1, cart_comm, MPI_STATUS_IGNORE);
-  MPI_Sendrecv(memsizes, 1, right_border, neighbours_ranks[RIGHT], 1, memsizes, 1, left_border, neighbours_ranks[LEFT], 1, cart_comm, MPI_STATUS_IGNORE);
-  MPI_Sendrecv(memsizes, 1, bottom_border, neighbours_ranks[DOWN], 1, memsizes, 1, top_border, neighbours_ranks[UP], 1, cart_comm, MPI_STATUS_IGNORE);
-  MPI_Sendrecv(memsizes, 1, top_border, neighbours_ranks[UP], 1, memsizes, 1, bottom_border, neighbours_ranks[DOWN], 1, cart_comm, MPI_STATUS_IGNORE);
+  // printf("4. iD: %d war hier\n", rank);
+  //MPI_Sendrecv(memsizes, 1, left_border, neighbours_ranks[LEFT], 1, memsizes, 1, right_border, neighbours_ranks[RIGHT], 1, cart_comm, MPI_STATUS_IGNORE);
+  //MPI_Sendrecv(memsizes, 1, right_border, neighbours_ranks[RIGHT], 1, memsizes, 1, left_border, neighbours_ranks[LEFT], 1, cart_comm, MPI_STATUS_IGNORE);
+  //MPI_Sendrecv(memsizes, 1, bottom_border, neighbours_ranks[DOWN], 1, memsizes, 1, top_border, neighbours_ranks[UP], 1, cart_comm, MPI_STATUS_IGNORE);
+  //MPI_Sendrecv(memsizes, 1, top_border, neighbours_ranks[UP], 1, memsizes, 1, bottom_border, neighbours_ranks[DOWN], 1, cart_comm, MPI_STATUS_IGNORE);
 
   // apply_periodic_boundaries(currentfield, width, height);
 
-
+  number_type *global_field = NULL;
   if (rank == 0)
   {
-    number_type *global_field = calloc(gsizes[0] * gsizes[1], sizeof(number_type));
-
+    global_field = calloc(gsizes[0] * gsizes[1], sizeof(number_type));
   }
-  MPI_Gather(memsizes,1,filetype,global_field, filetype, 0,cart_comm);
+
+  int local_start = start_indices[0] + start_indices[1] * width;
+
+  send_mpi(local_field, global_field, local_start, lsizes[0], lsizes[1], process_numX * process_numY, rank);
+  MPI_Barrier(MPI_COMM_WORLD);
+  // MPI_Gather(memsizes,1,filetype,global_field,1, filetype, 0,cart_comm);
   printf("iD: %d - gather done\n", rank);
 
-
-  for (time = 1; time <= num_timesteps; time++)
+  for (time = 0; time <= num_timesteps; time++)
   {
     if (rank == 0)
-  {
-    write_field(global_field,width,height,time);
-    printf("iD: %d - write done\n", rank);
+    {
+      write_field(global_field, width, height, time);
 
-  }
+      printf("iD: %d - write done\n", rank);
+    }
+    MPI_Barrier(MPI_COMM_WORLD);
     // TODO  implement evolve function (see above)
-    evolve(local_field, newfield, width, height, start_indices);
+    evolve(local_field, newfield, lsizes[0], lsizes[1], start_indices);
 
     // write_field(newfield, width, height, time);
     //  TODO 4: implement periodic boundary condition
